@@ -95,3 +95,71 @@ def detect_modulations(ctx: AnalysisContext) -> list[Event]:
         ev.start = ev.end = ctx.segs[a1].start
         out.append(ev)
     return out
+
+
+RULE_DECEPTIVE = "deceptive_cadence"
+
+
+def detect_deceptive(ctx: AnalysisContext) -> list[Event]:
+    """Deceptive cadence: the primary dominant moves to vi (major) or ♭VI (major or minor)
+    instead of the tonic.
+
+    Theory: a deceptive (interrupted) cadence needs a *cadential* dominant. In pop loops a
+    bare V→vi is often just passing motion (カノン進行 I–V–vi), so the V must be prepared by a
+    predominant (ii or IV family) or carry its 7th; unprepared V7 gets a lower factor.
+    """
+    cfg = ctx.cfg[RULE_DECEPTIVE]
+    dom = is_class("maj", "dom")
+    out: list[Event] = []
+    for j, vrun in enumerate(ctx.runs):
+        if vrun.root is None:
+            continue
+        k = ctx.next_run(j)
+        if k is None:
+            continue
+        key, kp = ctx.key_of(vrun.segs[-1])
+        t = key.tonic
+        p_v, v_seg = ctx.best_mass(vrun, t + 7, dom)
+        if p_v < ctx.min_root_prob:
+            continue
+        nxt = ctx.runs[k]
+        targets = [(t + 8, "♭VI", is_class("maj"))]
+        if key.is_major:
+            targets.insert(0, (t + 9, "vi", is_class("min")))
+        best: Event | None = None
+        for root, name, tq in targets:
+            p_t = ctx.root_prob(nxt, root)
+            if p_t < ctx.min_root_prob:
+                continue
+            res_seg = nxt.segs[0]
+            sc = Score()
+            sc.apply("dominant", f"{ctx.chord_label(v_seg)} = V of {key.label}", p_v)
+            sc.apply("root_motion", f"V moves up a step to {name} instead of I", p_t)
+            sc.apply("quality_target", f"{ctx.chord_label(res_seg)} as {name}",
+                     quality_factor(ctx, ctx.cond(res_seg, root, tq),
+                                    ctx.cond(res_seg, root, is_class("dim", "hdim"))))
+            prev = ctx.prev_run(j)
+            predominant = 0.0
+            if prev is not None:
+                pr = ctx.runs[prev]
+                predominant = max(ctx.best_mass(pr, t + 2, is_class("min", "hdim", "dim"))[0],
+                                  ctx.best_mass(pr, t + 5, is_class("maj", "min"))[0])
+            seventh = ctx.cond(v_seg, t + 7, lambda ch: 1.0 if ch.has_seventh else 0.0)
+            if predominant >= 0.5:
+                sc.apply("preparation", "V is prepared by a predominant (ii / IV)", cfg["prepared"])
+            elif seventh >= 0.5:
+                sc.apply("preparation", "unprepared, but V carries its 7th", cfg["seventh_only"])
+            else:
+                continue  # passing V→vi in a loop, not a cadence
+            sc.apply("key", f"local key {key.label} (p={kp:.2f})", ctx.key_factor(kp))
+            if sc.value < ctx.min_conf:
+                continue
+            ev = make_event(ctx, type_="deceptive_cadence", rule=RULE_DECEPTIVE,
+                            label=f"V–{name} (deceptive cadence)", seg_indices=[v_seg, res_seg], score=sc,
+                            key_label=key.label, attributes={"target": name, "borrowed_target": name == "♭VI"
+                                                             and key.is_major})
+            if best is None or ev.confidence > best.confidence:
+                best = ev
+        if best is not None:
+            out.append(best)
+    return out

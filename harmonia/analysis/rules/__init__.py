@@ -19,6 +19,7 @@ RULES: dict[str, Callable[[AnalysisContext], list[Event]]] = {
     "tritone_sub": tritone.detect,
     "borrowed": borrowed.detect,
     "aeolian_cadence": patterns.detect_aeolian,
+    "deceptive_cadence": patterns.detect_deceptive,
     "modulation": patterns.detect_modulations,
 }
 

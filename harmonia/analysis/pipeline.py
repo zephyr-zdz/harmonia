@@ -9,11 +9,13 @@ from typing import Any
 
 from ..config import load_config
 from ..schema import (
-    AnalysisResult, ChordCandidate, GlobalKey, KeyLabel, KeyRegion, RecognitionResult, RomanInfo, Segment,
+    AnalysisResult, ChordCandidate, GlobalKey, KeyLabel, KeyRegion, NamedProgression, RecognitionResult,
+    RomanInfo, Segment,
 )
 from ..theory.key import Key, parse_key
 from ..theory.roman import roman
 from .context import AnalysisContext
+from .idioms import key_prior_bonus, match_idioms
 from .key_model import estimate_keys
 from .resolve import resolve
 from .rules import RULES
@@ -21,7 +23,7 @@ from .segments import SegData, build_segments
 
 
 # Events whose per-segment `functions` are copied onto the segments (e.g. "V7/vi").
-_FUNCTIONAL_EVENTS = {"ii_V_I", "secondary_dominant", "secondary_leading_tone", "tritone_sub"}
+_FUNCTIONAL_EVENTS = {"ii_V_I", "ii_V", "secondary_dominant", "secondary_leading_tone", "tritone_sub"}
 
 
 def _key_label(key: Key, prob: float) -> KeyLabel:
@@ -35,10 +37,14 @@ def build_context(rec: RecognitionResult, cfg: dict[str, Any] | None = None,
     if not segs:
         raise ValueError("input has no frames")
     given = parse_key(key) if isinstance(key, str) else key
-    ka = estimate_keys(segs, cfg, given)
+    ctx = AnalysisContext(segs, None, cfg)
+    idioms = match_idioms(ctx) if cfg["named_progressions"]["enabled"] else []
+    ka = estimate_keys(segs, cfg, given, prior=key_prior_bonus(idioms, len(segs), cfg))
     for s, k, p in zip(segs, ka.seg_keys, ka.seg_probs):
         s.key, s.key_prob = k, p
-    return AnalysisContext(segs, ka, cfg), warnings
+    ctx.keys = ka
+    ctx.idioms = idioms
+    return ctx, warnings
 
 
 def _segment_out(s: SegData, cfg: dict) -> Segment:
@@ -107,8 +113,18 @@ def analyze(rec: RecognitionResult, config: dict[str, Any] | None = None,
         mean_p = sum(ctx.segs[i].key_prob for i in range(a, b)) / (b - a)
         regions.append(KeyRegion(ctx.segs[a].start, ctx.segs[b - 1].end, [a, b], _key_label(k, mean_p)))
 
+    progressions = []
+    for m in ctx.idioms:
+        progressions.append(NamedProgression(
+            name=m.name, alias=m.alias, start=ctx.segs[m.seg_indices[0]].start,
+            end=ctx.segs[m.seg_indices[-1]].end, segment_indices=m.seg_indices,
+            reference_key=m.ref_key.label,
+            numerals=[roman(ctx.segs[s].chord, m.ref_key).display for s in m.seg_indices],
+            confidence=m.confidence, key_prior_applied=m.use_key_prior and ka.source != "given"))
+
     return AnalysisResult(
         time_unit=rec.time_unit, global_key=gk, key_regions=regions, segments=segments, events=events,
+        progressions=progressions,
         warnings=warnings, source=rec.source,
         config={"key_given": ka.source == "given"},
     )

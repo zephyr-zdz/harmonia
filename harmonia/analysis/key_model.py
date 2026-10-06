@@ -202,12 +202,19 @@ def _merge_short_regions(path: list[int], E: list[list[float]], segs: list[SegDa
         path[a:b] = [best] * (b - a)
 
 
-def estimate_keys(segs: list[SegData], cfg: dict, given: Key | None = None) -> KeyAnalysis:
+def estimate_keys(segs: list[SegData], cfg: dict, given: Key | None = None,
+                  prior: list[dict[Key, float]] | None = None) -> KeyAnalysis:
+    """``prior``: optional per-segment additive emission bonus {key: log-bonus}
+    (from named progressions with use_key_prior, see idioms.py)."""
     kc = cfg["key"]
     n = len(segs)
     if n == 0:
         raise ValueError("cannot estimate key of an empty progression")
     E = emission_matrix(segs, cfg)
+    if prior is not None:
+        for t, bonus in enumerate(prior):
+            for key, b in bonus.items():
+                E[t][KEY_INDEX[key]] += b
 
     if given is not None:
         gi = KEY_INDEX[given]

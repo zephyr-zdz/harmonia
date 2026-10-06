@@ -38,11 +38,13 @@ def build_runs(segs: list[SegData]) -> list[Run]:
 
 
 class AnalysisContext:
-    def __init__(self, segs: list[SegData], keys: KeyAnalysis, cfg: dict):
+    def __init__(self, segs: list[SegData], keys: KeyAnalysis | None, cfg: dict):
+        # keys is None only during the key-independent pre-pass (named progressions)
         self.segs = segs
         self.keys = keys
         self.cfg = cfg
         self.runs = build_runs(segs)
+        self.idioms: list = []  # IdiomMatch list, filled by pipeline.build_context
         g = cfg["general"]
         self.min_root_prob: float = g["min_root_prob"]
         self.min_conf: float = g["min_event_confidence"]

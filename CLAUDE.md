@@ -9,8 +9,8 @@ Target styles: J-pop / City Pop / pop. Jazz reharmonisation accuracy is a non-go
 
 | Phase | Scope | State |
 |---|---|---|
-| 1 | Symbolic analysis layer (chord symbols → keys / numerals / events) | **done, awaiting user review** |
-| 2 | Evaluation framework (mir_eval chord metrics, event P/R, error attribution) | not started |
+| 1 | Symbolic analysis layer (chord symbols → keys / numerals / events) | done (accepted 2026-10-06) |
+| 2 | Evaluation framework (mir_eval chord metrics, event P/R, error attribution) | in progress |
 | 3 | Audio front end (source separation, beats, bass, chord recognition, Viterbi, local key) | not started — research options first, user chooses |
 | 4 | UI (timeline, playback, manual chord edits → re-analysis) | not started |
 | 5 | Optional LLM narration of events | not started |
@@ -41,6 +41,8 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
   - `key_model.py` — chord-level HMM over 24 keys: hand-written emission table
     (MAJOR_FIT / MINOR_FIT) + V→I cadence bonus; Viterbi path; short regions merged
     (tonicization ≠ modulation); forward–backward posteriors = key confidence.
+  - `idioms.py` — named progressions (王道 / 丸サ / 小室 / カノン), matched in all
+    transpositions before key estimation; optional reference-key prior.
   - `context.py` — *runs* (consecutive segments sharing a root) + navigation that skips
     passing chords and short N.
   - `rules/` — one module per rule family, each a pure `detect(ctx) -> list[Event]`,
@@ -102,19 +104,20 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
   and source. Phase 3 library choice: present 2–3 options, user decides.
 - Prefer MPS / Metal / Core ML on this Mac (no NVIDIA GPU).
 
-## Open questions for the user (Phase 1)
+## Decisions log
 
-1. **Key reference for 丸サ進行** — with no key given, `Fmaj7 E7 Am7 Gm7 C7` is estimated as
-   F major (= D♭ major in the original song: I–VII7–iii–ii–V7). The user's numerals
-   (IVmaj7–III7–vim7–v–I7) use the C (= original A♭) reference. Tests currently fix the key
-   for this case. Which reference should automatic analysis prefer?
-2. **Relative-key ambiguity of bare loops** (IV–V–iii–vi with no tonic chord): currently a
-   mild major prior (`key.minor_bias = -0.1`) + an explicit ambiguity flag. OK?
-3. **Contradicting quality is penalised** (design decision 1) — a deliberate softening of
-   "quality only as bonus". OK?
-4. Unresolved ii–V (no I) is not reported yet; deceptive cadences (V→vi) are not events.
-   Wanted?
-5. `[[borrowed.major]] ♭VI7` entry is marked `[UNCERTAIN]`.
+- **2026-10-06 (user)** — Phase 1 accepted with:
+  1. 丸サ進行 is analysed in its naming reference (IVmaj7–III7–vim7–vm7–I7) even without a
+     given key. Implemented generically: named progressions (`[[named_progressions.idiom]]`)
+     may set `use_key_prior = true`, adding a reference-key prior to the key HMM. Only 丸サ
+     has it.
+  2. Bare relative-ambiguous loops (王道進行): keep the mild major prior + ambiguity flag.
+  3. Contradicting chord quality is penalised (design decision 1) — accepted.
+  4. Added: unresolved ii–V (`ii_V`: deceptive / unresolved / end) and deceptive cadence
+     (`deceptive_cadence`: prepared V or V7 → vi / ♭VI). The iv–♭VII7–I backdoor is *not* a
+     failed ii–V of ♭III; it stays a borrowed ♭VII7 with `backdoor`.
+  5. `♭VI7` borrowed-table entry kept.
+- Repo is public on GitHub (zephyr-zdz/harmonia). No license chosen yet (user's call).
 
 ## Eval material
 

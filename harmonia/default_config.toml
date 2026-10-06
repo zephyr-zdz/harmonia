@@ -42,6 +42,9 @@ target_tonic = 1.0               # resolves to the local tonic
 target_diatonic = 0.9            # tonicises another diatonic chord (secondary ii-V)
 target_other = 0.8               # tonicises a non-diatonic chord (e.g. ii-V to bVI)
 sus_v_match = 0.8                # V7sus4 counts as a partial quality match for V
+report_unresolved = true         # also report ii–V without its I (type "ii_V")
+unresolved_deceptive = 0.75      # ii–V → chord a step above the target (ii–V–vi)
+unresolved_other = 0.6           # ii–V → anything else, or end of input
 
 [secondary_dominant]
 enabled = true
@@ -207,3 +210,51 @@ numeral = "♭II"
 source = "Phrygian (Neapolitan)"
 quality_required = false
 note = "Neapolitan bII."
+
+# ---------------------------------------------------------------------------------------
+[named_progressions]
+# Conventionally named progressions, matched in any transposition. degrees / qclasses are
+# relative to the REFERENCE MAJOR KEY in which the progression is named. Matches are listed in
+# AnalysisResult.progressions (they are labels, not chromatic "events").
+enabled = true
+key_prior = 1.5     # HMM log-bonus per matched segment for the reference key (use_key_prior only)
+
+[[named_progressions.idiom]]
+name = "丸サ進行"
+alias = "Just the Two of Us progression"
+degrees = [5, 4, 9, 7, 0]
+qclasses = [["maj"], ["dom", "maj"], ["min"], ["min"], ["dom", "maj"]]
+# User decision 2026-10-06: analyse this loop in the conventional reference (IVmaj7 = first
+# chord), not in the key its internal ii–V–I points to (would be Imaj7–VII7–iii–ii–V7).
+use_key_prior = true
+note = "IVmaj7–III7–vim7–vm7–I7. [UNCERTAIN] Some sources call only IVmaj7–III7–vim7 the 'JTTOU' core."
+
+[[named_progressions.idiom]]
+name = "王道進行"
+alias = "Royal Road"
+degrees = [5, 7, 4, 9]
+qclasses = [["maj"], ["maj", "dom"], ["min", "dom"], ["min"]]
+# User decision 2026-10-06: bare loops keep the major prior + ambiguity flag, no extra prior.
+use_key_prior = false
+note = "IVmaj7–V7–iiim7–vim7; the III7 variant (iii replaced by V7/vi) is included."
+
+[[named_progressions.idiom]]
+name = "小室進行"
+alias = "Komuro progression"
+degrees = [9, 5, 7, 0]
+qclasses = [["min"], ["maj"], ["maj", "dom"], ["maj"]]
+use_key_prior = false
+note = "vi–IV–V–I."
+
+[[named_progressions.idiom]]
+name = "カノン進行"
+alias = "Canon progression"
+degrees = [0, 7, 9, 4, 5, 0, 5, 7]
+qclasses = [["maj"], ["maj", "dom"], ["min"], ["min"], ["maj"], ["maj"], ["maj"], ["maj", "dom"]]
+use_key_prior = false
+note = "I–V–vi–iii–IV–I–IV–V (Pachelbel)."
+
+[deceptive_cadence]
+enabled = true
+prepared = 1.0       # V preceded by ii / IV
+seventh_only = 0.8   # V7 without predominant preparation; bare unprepared V→vi is not reported

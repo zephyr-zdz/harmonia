@@ -40,6 +40,7 @@ with a warning; a frame with no parseable candidate becomes `X` with confidence 
 | `key_regions[]` | `{start, end, segment_range:[a,b), key}` from the HMM path. |
 | `segments[]` | merged chord spans, see below |
 | `events[]` | harmonic events, see below |
+| `progressions[]` | named progressions found: `{name, alias, start, end, segment_indices, reference_key, numerals, confidence, key_prior_applied}` |
 | `warnings[]` | parse problems, key ambiguity, missing beat info… never silently dropped |
 
 ### Segment
@@ -71,7 +72,8 @@ inversion e.g. `I/3`, `degree`, `diatonic`, `confidence` = chord prob × key pro
 }
 ```
 
-Event types: `ii_V_I`, `secondary_dominant` (`attributes.resolution` = resolved / deceptive /
+Event types: `ii_V_I`, `ii_V` (unresolved ii–V; `attributes.resolution` = deceptive / unresolved / end),
+`deceptive_cadence` (V→vi / V→♭VI), `secondary_dominant` (`attributes.resolution` = resolved / deceptive /
 unresolved), `secondary_leading_tone`, `tritone_sub`, `borrowed_chord`
 (`attributes.source`, `entry`, `backdoor`), `aeolian_cadence`, `modulation`
 (`attributes.from`, `to`, `interval`, `semitones`; `start == end` = boundary time).

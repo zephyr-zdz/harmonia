@@ -168,6 +168,19 @@ class Event:
 
 
 @dataclass
+class NamedProgression:
+    name: str                       # e.g. "丸サ進行"
+    alias: str                      # e.g. "Just the Two of Us progression"
+    start: float
+    end: float
+    segment_indices: list[int]      # one per idiom chord
+    reference_key: str              # key in which the idiom is conventionally named
+    numerals: list[str]             # numerals relative to reference_key
+    confidence: float
+    key_prior_applied: bool         # whether it biased the key estimate
+
+
+@dataclass
 class GlobalKey:
     key: KeyLabel
     alternatives: list[KeyLabel]
@@ -182,6 +195,7 @@ class AnalysisResult:
     key_regions: list[KeyRegion]
     segments: list[Segment]
     events: list[Event]
+    progressions: list[NamedProgression] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     source: dict[str, Any] = field(default_factory=dict)
     config: dict[str, Any] = field(default_factory=dict)

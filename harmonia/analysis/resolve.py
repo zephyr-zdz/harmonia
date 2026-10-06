@@ -2,7 +2,8 @@
 
 Several rules may "explain" one chromatic chord (Event.explains), e.g. Gm7 in C major can be
 a borrowed v7 or the ii of a ii–V into IV. Policy:
-  * rank 2 — contextual, resolved explanations (ii–V–I into a non-tonic target, resolved
+  * rank 2 — contextual explanations (ii–V(–I) into a non-tonic target — the ii→V motion is
+    itself functional context even when the I is missing —, resolved
     secondary dominant, secondary leading-tone chord, tritone substitution). The chord's
     chromatic tone is accounted for by where it goes, which is stronger evidence than mere
     membership in a parallel mode.
@@ -18,6 +19,9 @@ from __future__ import annotations
 from ..schema import Event
 
 
+_II_TYPES = ("ii_V_I", "ii_V")
+
+
 def rank(e: Event) -> int:
     if e.type == "borrowed_chord":
         return 1
@@ -28,12 +32,11 @@ def rank(e: Event) -> int:
 
 def _compatible(a: Event, b: Event) -> bool:
     pair = {a.type, b.type}
-    if pair == {"ii_V_I", "secondary_dominant"}:
-        ii = a if a.type == "ii_V_I" else b
+    if pair in ({"ii_V_I", "secondary_dominant"}, {"ii_V", "secondary_dominant"}):
+        ii = a if a.type in _II_TYPES else b
         sd = b if ii is a else a
-        return (sd.explains[0] == ii.segment_indices[1]
-                and sd.attributes.get("target_root") is not None
-                and sd.attributes.get("resolution") == "resolved")
+        # the V7/x of a ii–V into x is the same reading, not a competitor
+        return sd.explains[0] == ii.segment_indices[1]
     return False
 
 
@@ -69,7 +72,7 @@ def resolve(events: list[Event], cfg: dict) -> list[Event]:
         e.id = f"ev{n}"
         e.low_confidence = e.confidence < g["low_confidence_threshold"]
     for sd in (e for e in kept if e.type == "secondary_dominant"):
-        for ii in (e for e in kept if e.type == "ii_V_I" and e.attributes.get("tonicization")):
+        for ii in (e for e in kept if e.type in _II_TYPES and e.attributes.get("tonicization")):
             if _compatible(ii, sd):
                 sd.part_of = ii.id
     return kept
