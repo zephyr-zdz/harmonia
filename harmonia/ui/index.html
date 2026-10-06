@@ -84,7 +84,11 @@ ul.warn { margin: 0; padding-left: 18px; color: var(--warn); font-size: 12px; }
 </head>
 <body>
 <header>
-  <h1 id="title">Harmonia</h1>
+  <button id="prev" title="previous song ([)">◀</button>
+  <select id="songsel" style="max-width:320px"></select>
+  <button id="next" title="next song (])">▶</button>
+  <span id="loading" class="chip warn" hidden>transcribing…</span>
+  <h1 id="title" hidden>Harmonia</h1>
   <span id="gkey" class="chip">—</span>
   <span id="amb" class="chip warn" hidden>key ambiguous</span>
   <span id="meter" class="chip" hidden></span>
@@ -115,7 +119,9 @@ const EV_COLORS = { ii_V_I: "--ev-ii", ii_V: "--ev-iv", secondary_dominant: "--e
   tritone_sub: "--ev-tt", borrowed_chord: "--ev-bor", aeolian_cadence: "--ev-cad", deceptive_cadence: "--ev-dec", modulation: "--ev-mod" };
 const KEYS = ["C","Db","D","Eb","E","F","F#","G","Ab","A","Bb","B"].map(k => k + " major")
   .concat(["C","C#","D","Eb","E","F","F#","G","G#","A","Bb","B"].map(k => k + " minor"));
-const S = { rec: null, an: null, edits: [], key: "", sel: null, hasAudio: false, stopAt: null, name: "" };
+const S = { id: null, lib: [], rec: null, an: null, edits: [], key: "", sel: null, hasAudio: false, stopAt: null, name: "" };
+const store = (() => { try { return JSON.parse(localStorage.getItem("harmonia-edits") || "{}"); } catch { return {}; } })();
+function saveEdits() { store[S.id] = { edits: S.edits, key: S.key }; try { localStorage.setItem("harmonia-edits", JSON.stringify(store)); } catch {} }
 const $ = id => document.getElementById(id);
 const player = $("player");
 const fmt = t => S.an && S.an.time_unit === "beat" ? `beat ${t.toFixed(1)}` :
@@ -123,19 +129,46 @@ const fmt = t => S.an && S.an.time_unit === "beat" ? `beat ${t.toFixed(1)}` :
 const color = t => `var(${EV_COLORS[t] || "--accent"})`;
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-async function load() {
-  const r = await fetch("/api/state"); const st = await r.json();
-  S.rec = st.recognition; S.an = st.analysis; S.hasAudio = st.has_audio; S.name = st.name;
-  $("title").textContent = st.name;
-  for (const k of KEYS) { const o = document.createElement("option"); o.value = k; o.textContent = k; $("keysel").appendChild(o); }
-  if (S.hasAudio) { player.src = "/audio"; $("play").hidden = false; $("playhead").hidden = false; }
-  render();
+async function loadLibrary() {
+  const j = await (await fetch("/api/library")).json(); S.lib = j.items;
+  const sel = $("songsel"); const cur = sel.value; sel.innerHTML = "";
+  const groups = {}; for (const it of S.lib) (groups[it.group] = groups[it.group] || []).push(it);
+  for (const [g, items] of Object.entries(groups)) { const og = document.createElement("optgroup"); og.label = g;
+    for (const it of items) { const o = document.createElement("option"); o.value = it.id;
+      o.textContent = (it.status === "new" ? "○ " : it.status.startsWith("error") ? "✕ " : "● ") + it.name; og.appendChild(o); }
+    sel.appendChild(og); }
+  if (cur) sel.value = cur;
 }
-
+async function openSong(id) {
+  S.id = id; $("songsel").value = id; history.replaceState(null, "", "#" + id);
+  player.pause(); S.sel = null;
+  const st = (await (await fetch("/api/open", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) })).json()).status;
+  if (st !== "ready") { $("loading").hidden = false; $("loading").textContent = "transcribing… (~30 s)";
+    while (true) { await new Promise(r => setTimeout(r, 1500)); await loadLibrary(); if (S.id !== id) return;
+      const it = S.lib.find(x => x.id === id); if (it.status === "ready") break;
+      if (it.status.startsWith("error")) { $("loading").textContent = it.status; return; } } }
+  $("loading").hidden = true;
+  const r = await (await fetch("/api/state?id=" + id)).json();
+  S.rec = r.recognition; S.an = r.analysis; S.hasAudio = r.has_audio; S.name = r.name; document.title = "Harmonia · " + r.name;
+  const saved = store[id] || {}; S.edits = saved.edits || []; S.key = saved.key || ""; $("keysel").value = S.key;
+  if (S.hasAudio) { player.src = "/audio?id=" + id; } $("play").hidden = !S.hasAudio; $("playhead").hidden = !S.hasAudio;
+  if (S.edits.length || S.key) await reanalyse(); else render();
+  loadLibrary();
+}
+function step(d) { const ids = S.lib.map(x => x.id); const i = ids.indexOf(S.id); if (i >= 0 && ids[i + d]) openSong(ids[i + d]); }
+async function load() {
+  for (const k of KEYS) { const o = document.createElement("option"); o.value = k; o.textContent = k; $("keysel").appendChild(o); }
+  await loadLibrary();
+  const want = location.hash.slice(1); const first = S.lib.find(x => x.status !== "new") || S.lib[0];
+  await openSong(S.lib.some(x => x.id === want) ? want : first.id);
+}
+$("songsel").onchange = () => openSong($("songsel").value);
+$("prev").onclick = () => step(-1); $("next").onclick = () => step(1);
 async function reanalyse() {
   const r = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ edits: S.edits, key: S.key || null }) });
+    body: JSON.stringify({ id: S.id, edits: S.edits, key: S.key || null }) });
   const j = await r.json();
+  if (r.ok) saveEdits();
   if (!r.ok) { const e = document.querySelector("#detail .err"); if (e) e.textContent = j.error; S.edits.pop(); return false; }
   S.an = j.analysis; render(); return true;
 }
@@ -276,9 +309,10 @@ function frame() {
 $("zoom").oninput = render;
 $("keysel").onchange = async () => { S.key = $("keysel").value; await reanalyse(); };
 $("export").onclick = async () => { const r = await fetch("/api/export", { method: "POST", headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ edits: S.edits, key: S.key || null }) }); const j = await r.json();
+  body: JSON.stringify({ id: S.id, edits: S.edits, key: S.key || null }) }); const j = await r.json();
   alert(r.ok ? `Saved ${j.lab}\nand ${j.analysis}` : j.error); };
-document.addEventListener("keydown", ev => { if (ev.code === "Space" && ev.target.tagName !== "INPUT") { ev.preventDefault(); $("play").click(); } });
+document.addEventListener("keydown", ev => { if (ev.target.tagName === "INPUT" || ev.target.tagName === "SELECT") return;
+  if (ev.code === "Space") { ev.preventDefault(); $("play").click(); } else if (ev.key === "[") step(-1); else if (ev.key === "]") step(1); });
 load(); requestAnimationFrame(frame);
 </script>
 </body>

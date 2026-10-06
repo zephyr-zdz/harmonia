@@ -119,7 +119,8 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("--out", default="outputs/eval", help="report directory")
     u = sub.add_parser("ui", help="local web UI: timeline, playback, chord editing (127.0.0.1)")
     u.set_defaults(cmd="ui")
-    u.add_argument("input", help="audio file, progression .txt, .lab, or RecognitionResult .json")
+    u.add_argument("input", nargs="*", help="song library: dirs and/or files (audio, progression .txt, .lab, "
+                   "*.recognition.json); default: [ui].library in the config")
     u.add_argument("--port", type=int, default=8765)
     u.add_argument("--key", help="fix the key, e.g. 'C major'")
     u.add_argument("--config", help="TOML file deep-merged over the default config")
@@ -138,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd == "ui":
         from .ui.server import serve
-        serve(args.input, port=args.port, key=args.key, config=args.config, open_browser=not args.no_browser)
+        serve(args.input or None, port=args.port, key=args.key, config=args.config, open_browser=not args.no_browser)
         return 0
     if args.cmd == "eval":
         return _run_eval(args)

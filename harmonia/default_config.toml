@@ -286,3 +286,6 @@ no_chord_change = -1.0    # extra cost for changes into / out of N
 change_extra_halfbar = 0.5   # extra cost of a change on the half-bar beat (bar line: 0)
 change_extra_offbeat = 1.5   # extra cost of a change on any other beat
 transition_prior = ""     # optional JSON from harmonia.frontend.transition_prior (ChoCo stats)
+
+[ui]
+library = ["data/external/user_music"]   # default song library for `harmonia ui` (dirs or files, relative to repo)
