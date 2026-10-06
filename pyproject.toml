@@ -1,0 +1,21 @@
+[project]
+name = "harmonia"
+version = "0.1.0"
+description = "Local harmonic analysis for pop music (J-pop / City Pop): chords, local keys, roman numerals, notable harmonic events with confidence."
+requires-python = ">=3.11"
+# Phase 1 (symbolic analysis) is stdlib-only. Audio / evaluation dependencies are added
+# only after explicit approval (see CLAUDE.md, "Dependencies").
+dependencies = []
+
+[project.scripts]
+harmonia = "harmonia.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

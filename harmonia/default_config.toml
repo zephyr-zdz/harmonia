@@ -1,0 +1,209 @@
+# Harmonia analysis-layer configuration (defaults).
+#
+# Every number here is a hand-set prior derived from music-theory reasoning, NOT fitted to
+# any song. If these are ever tuned, tune them ONLY on data/eval/dev and record the change
+# (with before/after dev scores) in CLAUDE.md. Never tune on data/eval/test.
+#
+# Override any value with `harmonia analyze --config my.toml` (deep-merged over this file).
+
+[general]
+min_event_confidence = 0.35      # events below this are dropped entirely
+low_confidence_threshold = 0.6   # events / segments below this are kept but flagged low_confidence
+min_root_prob = 0.05             # root hypotheses with less probability mass are ignored by rules
+key_confidence_exponent = 0.5    # key-dependent events are multiplied by key_prob ** this
+passing_beats = 0.5              # chord runs shorter than this are skipped as passing / noise
+skip_no_chord_beats = 1.0        # "N" runs shorter than this do not block resolution lookups
+default_seconds_per_beat = 0.5   # used only to weight inputs with no beat info (assumes 120 BPM)
+
+[key]
+# Chord-level HMM over 24 keys. Emission table lives in harmonia/analysis/key_model.py.
+switch_penalty = 6.0             # log-cost of changing key between two chords
+minor_bias = -0.1                # per-weight-unit prior against minor (pop corpora are mostly major;
+                                 # Japanese analysis labels relative-ambiguous loops in major)  [ASK]
+cadence_bonus = 1.0              # V(7) -> I (or V(7) -> i) supports that key
+seventh_off_scale_penalty = 0.6  # maj7 / m7 / 6 whose added tone is outside the key
+min_region_beats = 16            # key regions shorter than this are merged (tonicization, not modulation)
+beats_per_weight_unit = 4.0      # a chord lasting one 4/4 bar gets weight 1
+weight_min = 0.25
+weight_max = 2.0
+ambiguity_ratio = 0.75           # a segment is ambiguous if p(2nd key) >= this * p(1st); global flag if >50% of beats are
+
+[quality]
+# Generic quality factor: f = base + (1 - base) * P(match) - contradict_penalty * P(contradict).
+# "Uninformative" quality (power chord, sus, unknown) leaves f = base, so quality is a bonus.
+# A quality that *contradicts* the function (e.g. a minor chord as "V") is penalised, because
+# root motion alone cannot tell ii-V-I from diatonic fifth chains such as vi-ii-V.
+base = 0.75
+contradict_penalty = 0.5
+
+[ii_V_I]
+enabled = true
+target_tonic = 1.0               # resolves to the local tonic
+target_diatonic = 0.9            # tonicises another diatonic chord (secondary ii-V)
+target_other = 0.8               # tonicises a non-diatonic chord (e.g. ii-V to bVI)
+sus_v_match = 0.8                # V7sus4 counts as a partial quality match for V
+
+[secondary_dominant]
+enabled = true
+# Weight of each chord type as dominant evidence. Only counted when the chord contains a tone
+# outside the key (its major 3rd or minor 7th): a diatonic C -> F in C major is I -> IV, not V/IV.
+weight_dom7 = 1.0
+weight_major_triad = 0.85
+weight_maj6 = 0.5
+weight_aug = 0.6
+weight_7sus4 = 0.6
+resolved = 1.0                   # next root a 5th below
+deceptive = 0.75                 # V/x -> chord a step above x's root (e.g. E7 -> F in C: III7 -> IV)
+unresolved = 0.5
+
+[secondary_leading_tone]
+enabled = true
+weight_dim7 = 1.0
+weight_dim = 0.9
+weight_hdim7 = 0.8
+
+[tritone_sub]
+enabled = true
+# subV7 shares the tritone (3rd + b7) of V7; without the b7 a bII major triad is better read as
+# a borrowed Neapolitan / Phrygian bII, hence the low triad weight (below min_event_confidence).
+weight_dom7 = 1.0
+weight_major_triad = 0.3
+weight_7sus4 = 0.5
+target_tonic = 1.0
+target_diatonic = 0.9
+target_other = 0.75
+
+[aeolian_cadence]
+enabled = true
+include_minor_keys = false       # in minor, bVI-bVII-i is diatonic; flagging it everywhere is noise
+
+[modulation]
+enabled = true
+context_segments = 4             # segments on each side used for the modulation confidence
+
+[borrowed]
+enabled = true
+quality_base = 0.6               # root-chromatic entries: factor when quality is uninformative
+
+# Borrowed (modal-interchange) chords.
+#   degree           : chord root in semitones above the tonic
+#   qclasses         : coarse quality classes that match (maj, min, dom, dim, hdim, ...)
+#   quality_required : true  -> root is diatonic, the borrowed tone is the 3rd/5th/7th, so the
+#                               quality IS the evidence (Fm vs F in C major).
+#                      false -> root itself is chromatic (Ab in C major); root is the main
+#                               evidence, quality only adds confidence (design principle 2).
+#   A chord only counts if at least one of its core tones is outside the key.
+
+# ---- major keys (borrowing mainly from the parallel minor) ----
+[[borrowed.major]]
+degree = 5
+qclasses = ["min"]
+numeral = "iv"
+source = "parallel minor (Aeolian)"
+quality_required = true
+note = "iv / ivm7 / ivm6: the b6 scale degree (Ab in C) is the borrowed tone."
+
+[[borrowed.major]]
+degree = 8
+qclasses = ["maj"]
+numeral = "♭VI"
+source = "parallel minor (Aeolian)"
+quality_required = false
+note = "bVI / bVImaj7."
+
+[[borrowed.major]]
+degree = 10
+qclasses = ["maj"]
+numeral = "♭VII"
+source = "parallel minor (Aeolian) / Mixolydian"
+quality_required = false
+note = "bVII."
+
+[[borrowed.major]]
+degree = 10
+qclasses = ["dom"]
+numeral = "♭VII7"
+source = "parallel minor (Aeolian) / Mixolydian"
+quality_required = false
+note = "bVII7; resolving to I it is the 'backdoor' dominant."
+
+[[borrowed.major]]
+degree = 3
+qclasses = ["maj"]
+numeral = "♭III"
+source = "parallel minor (Aeolian)"
+quality_required = false
+note = "bIII / bIIImaj7."
+
+[[borrowed.major]]
+degree = 2
+qclasses = ["hdim", "dim"]
+numeral = "iiø7"
+source = "parallel minor (Aeolian)"
+quality_required = true
+note = "ii° / iiø7: the b6 (Ab in C) is the borrowed tone."
+
+[[borrowed.major]]
+degree = 7
+qclasses = ["min"]
+numeral = "v"
+source = "Mixolydian / parallel minor"
+quality_required = true
+note = "v / vm7: the b7 (Bb in C) is the borrowed tone."
+
+[[borrowed.major]]
+degree = 0
+qclasses = ["min"]
+numeral = "i"
+source = "parallel minor"
+quality_required = true
+note = "i / im7 in a major key."
+
+[[borrowed.major]]
+degree = 1
+qclasses = ["maj"]
+numeral = "♭II"
+source = "Phrygian (Neapolitan)"
+quality_required = false
+note = "bII / bIImaj7 without b7. With a b7 and resolving down a semitone it is a tritone sub."
+
+[[borrowed.major]]
+degree = 8
+qclasses = ["dom"]
+numeral = "♭VI7"
+source = "parallel minor (Aeolian) + b7"
+quality_required = false
+note = "[UNCERTAIN] bVI7 is common in J-pop; resolving to V it is subV/V (tritone rule wins)."
+
+# ---- minor keys (borrowing from the parallel major / Dorian) ----
+[[borrowed.minor]]
+degree = 0
+qclasses = ["maj"]
+numeral = "I"
+source = "parallel major (Picardy third)"
+quality_required = true
+note = "Major tonic in a minor key."
+
+[[borrowed.minor]]
+degree = 5
+qclasses = ["maj", "dom"]
+numeral = "IV"
+source = "Dorian / melodic minor"
+quality_required = true
+note = "IV / IV7 in minor: the raised 6th (F# in A minor) is the borrowed tone."
+
+[[borrowed.minor]]
+degree = 2
+qclasses = ["min"]
+numeral = "ii"
+source = "Dorian / parallel major"
+quality_required = true
+note = "ii / iim7 in minor: the raised 6th is the chord's fifth."
+
+[[borrowed.minor]]
+degree = 1
+qclasses = ["maj"]
+numeral = "♭II"
+source = "Phrygian (Neapolitan)"
+quality_required = false
+note = "Neapolitan bII."

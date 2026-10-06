@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# Local-only notes (contain personal paths)
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Evaluation data: copyrighted audio / annotations never go into this public repo
+data/eval/**
+!data/eval/README.md
+
+# Audio anywhere
+*.mp3
+*.m4a
+*.flac
+*.wav
+*.aiff
+*.ogg
+
+# Derived outputs and model weights
+outputs/
+models/
+*.pt
+*.ckpt
+*.onnx
+
+.DS_Store
