@@ -283,4 +283,6 @@ vocabulary = "submission"                 # submission (301 chords) | ismir2017 
 obs_weight = 1.0          # temperature on beat-mean frame log-likelihood (calibrate on dev only)
 change_penalty = 2.0      # log-cost of a chord change between beats (on top of the prior)
 no_chord_change = -1.0    # extra cost for changes into / out of N
+change_extra_halfbar = 0.5   # extra cost of a change on the half-bar beat (bar line: 0)
+change_extra_offbeat = 1.5   # extra cost of a change on any other beat
 transition_prior = ""     # optional JSON from harmonia.frontend.transition_prior (ChoCo stats)

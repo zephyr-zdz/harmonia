@@ -69,7 +69,13 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
 - `harmonia/frontend/` (Phase 3, option A) — `beats.py` (Beat This!, librosa fallback),
   `chords.py` (lv-chordia ensemble; we tap its decomposition heads + observation function,
   not its final labels), `decode.py` (beat-synchronous HMM with root-motion transition prior,
-  forward–backward → per-beat top-k), `pipeline.py` (`transcribe()` → RecognitionResult).
+  forward–backward → per-beat top-k; chord changes cost extra off the bar line / half bar),
+  `meter.py` (user suggestion: BPM first, then bar lines — mode-seeded beat & bar periods,
+  meter m = bar/beat, BPM = 60·m/bar, regularised bar grid with filled / dropped / genuinely
+  irregular bars), `pipeline.py` (`transcribe()` → RecognitionResult; m4a etc. decoded once
+  via ffmpeg into outputs/cache/decoded/).
+- `harmonia/batch.py` — `harmonia batch <dir> -o outputs/runs/<name>` (per-song JSON + summary.md).
+- `harmonia/ui/` — `harmonia ui <audio | progression | recognition.json>`: local timeline UI.
   Chord models get the FULL MIX (they were trained on mixes); separation is optional, bass only.
 - Model weights live in `models/` (gitignored): `models/beat_this/final0.ckpt` (81 MB, MIT,
   https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt, sha256 8c328b45…).
@@ -146,6 +152,11 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
   session goal; every component is a swappable backend (user may override).
 - **IdolSongsJp license**: non-commercial research; using its tracks for model TRAINING is
   prohibited → evaluation only. Gated on HuggingFace: the user must accept terms and log in.
+- **2026-10-06 (user)**: estimate BPM first, then bar lines → `frontend/meter.py`. Check case:
+  春日影 tab = 6/8, ♪=194 → system 193.5 BPM, 6/8, bar 1.860 s (tab 1.856 s).
+- **2026-10-06 (user)**: copy the provided music into the project and recognise all of it →
+  `data/external/user_music/` (gitignored, PROVENANCE.md), results in `outputs/runs/user_music_v1/`.
+  User's impression of accuracy: "还行" (decent). No reference annotations yet → no scores.
 - ChoCo v1.0.0 (Zenodo 7706751, md5 c26f2380…): annotations only; used for symbolic
   validation of the key model and for transition-prior statistics.
 

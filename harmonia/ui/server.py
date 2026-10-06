@@ -47,6 +47,10 @@ class UIState:
         self.key = key
         self.audio: Path | None = src if src.suffix.lower() in AUDIO_SUFFIXES else None
         self.recognition = self._load_recognition()
+        if self.audio is None:  # a saved RecognitionResult remembers its audio file
+            p = Path(self.recognition.source.get("path") or "")
+            if p.suffix.lower() in AUDIO_SUFFIXES and p.is_file():
+                self.audio = p
         self.lock = threading.Lock()
 
     def _cache_path(self) -> Path:

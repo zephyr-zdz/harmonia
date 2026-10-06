@@ -15,7 +15,8 @@ import numpy as np
 from ..config import load_config
 from ..schema import BassObservation, ChordCandidate, Frame, RecognitionResult
 from ..theory.pitch import note_name
-from .beats import beat_intervals, track_beats
+from .beats import track_beats
+from .meter import build_grid
 from .chords import frame_evidence
 from .decode import decode
 
@@ -32,8 +33,34 @@ def load_prior(cfg: dict) -> dict | None:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def readable_audio(path: Path) -> Path:
+    """libsndfile (used by Beat This!) cannot open some containers (m4a/aac): decode those once
+    to a cached 44.1 kHz wav with ffmpeg. The original file is never modified."""
+    import soundfile as sf
+    try:
+        sf.info(str(path))
+        return path
+    except Exception:
+        pass
+    import hashlib
+    import shutil
+    import subprocess
+    if shutil.which("ffmpeg") is None:
+        raise RuntimeError(f"cannot decode {path.name}: libsndfile cannot read it and ffmpeg is not installed")
+    st = path.stat()
+    h = hashlib.sha256(f"{path}|{st.st_size}|{st.st_mtime}".encode()).hexdigest()[:12]
+    out = Path(__file__).resolve().parents[2] / "outputs" / "cache" / "decoded" / f"{path.stem}.{h}.wav"
+    if not out.is_file():
+        out.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", str(path), "-ac", "2", "-ar", "44100",
+                        str(out)], check=True)
+    return out
+
+
 def transcribe(audio_path: str | Path, cfg: dict | None = None) -> RecognitionResult:
     cfg = cfg or load_config()
+    source_path = Path(audio_path).resolve()  # lv-chordia resolves relative paths against its package dir
+    audio_path = readable_audio(source_path)
     fc = cfg["frontend"]
     dc = fc["decode"]
     warnings: list[str] = []
@@ -41,15 +68,26 @@ def transcribe(audio_path: str | Path, cfg: dict | None = None) -> RecognitionRe
     ev = frame_evidence(audio_path, cfg)
     grid = track_beats(audio_path, cfg)
     warnings += grid.warnings
-    edges, bars, pos = beat_intervals(grid, ev.duration)
-    if len(edges) < 3:
-        warnings.append("fewer than 2 beats detected; falling back to 0.5 s frames")
+    meter = None
+    if len(grid.beats) >= 8:
+        meter = build_grid(grid.beats, grid.downbeats, ev.duration)
+        warnings += meter.warnings
+        bt = meter.beats[(meter.beats >= 0) & (meter.beats < ev.duration - 1e-3)]
+        keep = (meter.beats >= 0) & (meter.beats < ev.duration - 1e-3)
+        bars = [b for b, k in zip(meter.bar_index, keep) if k]
+        pos = [p for p, k in zip(meter.beat_in_bar, keep) if k]
+        edges = np.concatenate([[0.0], bt, [ev.duration]]) if bt[0] > 1e-3 else np.concatenate([bt, [ev.duration]])
+        if bt[0] > 1e-3:  # audio before the first beat: one pre-roll frame without bar info
+            bars, pos = [None] + bars, [None] + pos
+        period = meter.beat_period
+    else:
+        warnings.append("fewer than 8 beats detected; falling back to 0.5 s frames, no bar lines")
         edges = np.arange(0.0, ev.duration + 0.5, 0.5)
         edges[-1] = ev.duration
         bars, pos = [None] * (len(edges) - 1), [None] * (len(edges) - 1)
+        period = 0.5
 
-    dec = decode(ev, edges, dc, load_prior(cfg))
-    period = float(np.median(np.diff(grid.beats))) if len(grid.beats) > 1 else 0.5
+    dec = decode(ev, edges, dc, load_prior(cfg), positions=pos, beats_per_bar=meter.beats_per_bar if meter else None)
     frames: list[Frame] = []
     n_low = 0
     for b in range(len(edges) - 1):
@@ -72,13 +110,17 @@ def transcribe(audio_path: str | Path, cfg: dict | None = None) -> RecognitionRe
     if n_low:
         warnings.append(f"{n_low}/{len(frames)} beats have top chord probability < "
                         f"{cfg['general']['low_confidence_threshold']}")
-    # most common bar length = last beat_in_bar before a downbeat
-    lengths = [pos[i] for i in range(len(pos) - 1) if pos[i] is not None and pos[i + 1] == 1]
-    beats_per_bar = int(np.bincount(lengths).argmax()) if lengths else None
+    beats_per_bar = meter.beats_per_bar if meter else None
     return RecognitionResult(
         frames=frames, time_unit="second", beats_per_bar=beats_per_bar,
-        source={"type": "audio", "path": str(audio_path), "chord_backend": ev.backend,
+        source={"type": "audio", "path": str(source_path), "decoded_from": None if audio_path == source_path else str(audio_path),
+                "chord_backend": ev.backend,
                 "beat_backend": grid.backend, "tempo_bpm": round(60.0 / period, 1),
+                "meter": None if meter is None else {
+                    "bpm": round(meter.bpm, 1), "beats_per_bar": meter.beats_per_bar,
+                    "time_signature": meter.time_signature, "bar_seconds": round(meter.bar_period, 4),
+                    "tempo_cv": round(meter.tempo_cv, 4), "n_bars": int(len(meter.bar_starts)),
+                    "irregular_bars": meter.irregular_bars},
                 "decode": {k: v for k, v in dc.items()}},
         warnings=warnings,
     )

@@ -82,19 +82,45 @@ def beat_observations(ev: FrameEvidence, edges: np.ndarray, dc: dict) -> tuple[n
     return obs, bass
 
 
-def decode(ev: FrameEvidence, edges: np.ndarray, dc: dict, prior: dict | None = None) -> BeatDecoding:
+def metrical_extra(positions: list[int | None] | None, beats_per_bar: int | None, dc: dict, B: int) -> np.ndarray:
+    """Extra log-cost of a chord change INTO beat t, by metrical position: bar line 0, half-bar
+    ``change_extra_halfbar``, other beats ``change_extra_offbeat`` (pop harmony mostly changes
+    on bar lines and half bars)."""
+    extra = np.zeros(B)
+    if not positions or not beats_per_bar:
+        return extra
+    # half-bar beat: 4/4 -> 3, 6/8 -> 4, 12/8 -> 7; odd meters (3/4, 5/4) have none
+    half = beats_per_bar // 2 + 1 if beats_per_bar % 2 == 0 else None
+    for t, p in enumerate(positions[:B]):
+        if p is None or p == 1:
+            continue
+        extra[t] = dc["change_extra_halfbar"] if p == half else dc["change_extra_offbeat"]
+    return extra
+
+
+def decode(ev: FrameEvidence, edges: np.ndarray, dc: dict, prior: dict | None = None,
+           positions: list[int | None] | None = None, beats_per_bar: int | None = None) -> BeatDecoding:
     obs, bass = beat_observations(ev, edges, dc)
     A = transition_matrix(ev.labels, dc, prior)
     B, C = obs.shape
+    extra = metrical_extra(positions, beats_per_bar, dc, B)
+    eye = np.eye(C, dtype=bool)
+
+    def At(t: int) -> np.ndarray:
+        if extra[t] == 0:
+            return A
+        M = A - extra[t]
+        M[eye] = A[eye]
+        return M
     # forward-backward (log space)
     alpha = np.zeros((B, C))
     alpha[0] = obs[0] - _logsumexp(obs[0], 0)
     for t in range(1, B):
-        alpha[t] = obs[t] + _logsumexp(alpha[t - 1][:, None] + A, 0)
+        alpha[t] = obs[t] + _logsumexp(alpha[t - 1][:, None] + At(t), 0)
         alpha[t] -= _logsumexp(alpha[t], 0)
     beta = np.zeros((B, C))
     for t in range(B - 2, -1, -1):
-        beta[t] = _logsumexp(A + (obs[t + 1] + beta[t + 1])[None, :], 1)
+        beta[t] = _logsumexp(At(t + 1) + (obs[t + 1] + beta[t + 1])[None, :], 1)
         beta[t] -= _logsumexp(beta[t], 0)
     g = alpha + beta
     post = np.exp(g - _logsumexp(g, 1)[:, None])
@@ -102,7 +128,7 @@ def decode(ev: FrameEvidence, edges: np.ndarray, dc: dict, prior: dict | None = 
     score = obs[0].copy()
     back = np.zeros((B, C), dtype=int)
     for t in range(1, B):
-        cand = score[:, None] + A
+        cand = score[:, None] + At(t)
         back[t] = np.argmax(cand, axis=0)
         score = cand[back[t], np.arange(C)] + obs[t]
     path = [int(np.argmax(score))]

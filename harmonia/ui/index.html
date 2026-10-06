@@ -87,6 +87,7 @@ ul.warn { margin: 0; padding-left: 18px; color: var(--warn); font-size: 12px; }
   <h1 id="title">Harmonia</h1>
   <span id="gkey" class="chip">—</span>
   <span id="amb" class="chip warn" hidden>key ambiguous</span>
+  <span id="meter" class="chip" hidden></span>
   <label class="inline">key <select id="keysel"><option value="">auto</option></select></label>
   <button id="play" class="primary" hidden>▶ Play</button>
   <span id="clock" class="muted"></span>
@@ -158,11 +159,19 @@ function render() {
   $("amb").hidden = !gk.ambiguous;
   $("editcount").textContent = S.edits.length ? `${S.edits.length} edit(s)` : "";
 
-  // ruler: bars when known, else seconds
-  const ruler = lane("time", 22, "ruler");
-  const step = P > 60 ? 2 : P > 25 ? 5 : 10;
-  for (let t = 0; t < duration(); t += step) tick(ruler, t * P, an.time_unit === "beat" ? `${t}` : fmt(t).replace(/\.\d$/, ""));
-  const barStarts = {}; for (const f of S.rec.frames) if (f.beat_in_bar === 1 && f.bar && !(f.bar in barStarts)) barStarts[f.bar] = f.time;
+  // ruler: bar lines + bar numbers when the recognition layer found a bar grid, else time
+  const m = (S.rec.source || {}).meter;
+  $("meter").hidden = !m; if (m) $("meter").textContent = `${m.bpm} BPM · ${m.time_signature}`;
+  const barStarts = []; for (const f of S.rec.frames) if (f.beat_in_bar === 1 && f.bar) barStarts.push([f.bar, f.time]);
+  const ruler = lane(barStarts.length ? "bar" : "time", 22, "ruler");
+  if (barStarts.length) {
+    const every = Math.max(1, Math.ceil(40 / (P * (m ? m.bar_seconds : 2))));
+    for (const [b, t] of barStarts) { const tk = el("div", "tick", ruler); tk.style.left = t * P + "px";
+      tk.textContent = (b - 1) % every === 0 ? b : ""; if ((b - 1) % every) tk.style.opacity = .45; }
+  } else {
+    const step = P > 60 ? 2 : P > 25 ? 5 : 10;
+    for (let t = 0; t < duration(); t += step) tick(ruler, t * P, an.time_unit === "beat" ? `${t}` : fmt(t).replace(/\.\d$/, ""));
+  }
 
   const keys = lane("key", 44);
   an.key_regions.forEach((r, i) => { const d = el("div", "keyblk", keys); place(d, r.start, r.end);

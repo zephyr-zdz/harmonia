@@ -124,8 +124,18 @@ def main(argv: list[str] | None = None) -> int:
     u.add_argument("--key", help="fix the key, e.g. 'C major'")
     u.add_argument("--config", help="TOML file deep-merged over the default config")
     u.add_argument("--no-browser", action="store_true")
+    bt = sub.add_parser("batch", help="transcribe + analyse every audio file under a directory")
+    bt.set_defaults(cmd="batch")
+    bt.add_argument("input", help="directory of audio files (searched recursively)")
+    bt.add_argument("-o", "--output", required=True, help="output directory")
+    bt.add_argument("--config", help="TOML file deep-merged over the default config")
     args = ap.parse_args(argv)
 
+    if args.cmd == "batch":
+        from .batch import run_batch
+        md = run_batch(Path(args.input), Path(args.output), args.config)
+        print(md.read_text(encoding="utf-8"))
+        return 0
     if args.cmd == "ui":
         from .ui.server import serve
         serve(args.input, port=args.port, key=args.key, config=args.config, open_browser=not args.no_browser)
