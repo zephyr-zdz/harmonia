@@ -1,0 +1,31 @@
+[
+ {
+  "type": "ii_V_I",
+  "start": 4.0,
+  "end": 10.0,
+  "label": "ii–V–I"
+ },
+ {
+  "type": "secondary_dominant",
+  "start": 10.0,
+  "end": 14.0,
+  "label": "V7/vi"
+ },
+ {
+  "type": "borrowed_chord",
+  "start": 16.0,
+  "end": 18.0
+ },
+ {
+  "type": "ii_V_I",
+  "start": 20.0,
+  "end": 26.0,
+  "label": "ii–V–I → IV"
+ },
+ {
+  "type": "secondary_dominant",
+  "start": 22.0,
+  "end": 26.0,
+  "label": "V7/IV"
+ }
+]

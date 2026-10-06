@@ -1,0 +1,25 @@
+[
+ {
+  "type": "ii_V_I",
+  "bars": [
+   3,
+   4
+  ],
+  "label": "ii–V–I"
+ },
+ {
+  "type": "secondary_dominant",
+  "bars": [
+   7,
+   8
+  ],
+  "label": "V7/vi"
+ },
+ {
+  "type": "borrowed_chord",
+  "bars": [
+   10,
+   10
+  ]
+ }
+]

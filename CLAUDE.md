@@ -20,11 +20,16 @@ Each phase ends with: run tests, report metrics, stop for user confirmation.
 ## Commands
 
 ```bash
-python3 -m unittest discover -s tests -t .          # full test suite (stdlib only)
+uv sync --extra eval                                 # .venv with mir_eval (Phase 2)
+.venv/bin/python -m unittest discover -s tests -t .  # full suite (eval tests skip without mir_eval)
+.venv/bin/python -m harmonia eval --split dev --estimates outputs/<run>   # real system output
+.venv/bin/python -m harmonia eval --split dev --simulate --seed 0         # simulated recogniser
+.venv/bin/python -m harmonia eval --split dev --sweep                     # robustness curve
 python3 -m harmonia analyze "| Fmaj7 | E7 | Am7 | Gm7 C7 |" --key "C major"
 python3 -m harmonia analyze song.lab --json -o out.json
 ```
-Phase 1 has no third-party dependencies; Python ≥ 3.11 (`tomllib`). Dev machine has 3.14.
+The analysis layer is stdlib-only; Python ≥ 3.11 (`tomllib`). `.venv` = Python 3.14 + optional `eval` extra
+(mir_eval 0.8.2, numpy, scipy), locked in `uv.lock`. Reports go to `outputs/eval/` (gitignored).
 
 ## Architecture
 
@@ -51,6 +56,13 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
     readings (rank 2) beat borrowed / unresolved readings (rank 1); losers kept in
     `alternatives`.
   - `pipeline.py` — `analyze()` and `build_context()` (the latter for testing rules alone).
+- `harmonia/eval/` (Phase 2) — `dataset.py` (data/eval layout, gold events by time or bars),
+  `align.py` (edit-distance chart alignment), `chords.py` (mir_eval root/majmin/sevenths; chart
+  symbol-error rates + approximate aligned scores), `events.py` (event P/R/F1, error
+  attribution oracle-vs-system), `simulate.py` (seeded simulated recogniser), `runner.py`
+  (per-song + aggregate report with provenance: git commit, config hash, seed, versions).
+  Attribution logic: analysis run on reference chords = "oracle" (analysis-layer errors);
+  on recognised chords = "system"; the difference is recognition-induced.
 - `harmonia/default_config.toml` — every threshold / weight / borrowed-chord table entry,
   with theory comments. Override with `--config`.
 

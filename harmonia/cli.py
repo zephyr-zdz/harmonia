@@ -56,17 +56,60 @@ def format_table(res: AnalysisResult) -> str:
     return "\n".join(lines)
 
 
+SWEEP_LEVELS = [(0.0, 0.0), (0.05, 0.1), (0.1, 0.2), (0.2, 0.3), (0.3, 0.4)]
+
+
+def _run_eval(args: argparse.Namespace) -> int:
+    from .eval.runner import run, sweep, to_markdown, write_report  # optional dependency (mir_eval)
+    from .eval.simulate import SimConfig
+
+    cfg = load_config(args.config)
+    data = Path(args.data)
+    if args.sweep:
+        rep = sweep(data, args.split, SWEEP_LEVELS, seed=args.seed, jitter=args.jitter, cfg=cfg)
+        name = f"{args.split}_sweep"
+    elif args.simulate:
+        rep = run(data, args.split, sim=SimConfig(args.root_error, args.quality_error, args.jitter, args.seed), cfg=cfg)
+        name = f"{args.split}_simulated"
+    else:
+        rep = run(data, args.split, estimates_dir=Path(args.estimates), cfg=cfg)
+        name = f"{args.split}_{Path(args.estimates).name}"
+    if "aggregate" in rep and rep["aggregate"]["n_songs"] == 0:
+        print(f"no songs evaluated in {data / args.split}", file=sys.stderr)
+    jp, mp = write_report(rep, Path(args.out), name)
+    print(to_markdown(rep))
+    print(f"report: {mp}\n        {jp}", file=sys.stderr)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="harmonia")
     sub = ap.add_subparsers(dest="cmd", required=True)
     a = sub.add_parser("analyze", help="analyse a chord progression (text, file, .lab, or recognition .json)")
+    a.set_defaults(cmd="analyze")
     a.add_argument("input", help="progression text, a file path, or '-' for stdin")
     a.add_argument("--key", help="fix the key instead of estimating it, e.g. 'C major', 'Am'")
     a.add_argument("--config", help="TOML file deep-merged over the default config")
     a.add_argument("--beats-per-bar", type=int, default=4)
     a.add_argument("--json", action="store_true", help="print the AnalysisResult JSON")
     a.add_argument("-o", "--output", help="write the AnalysisResult JSON to this path")
+    e = sub.add_parser("eval", help="evaluate on data/eval/<split> (needs the 'eval' extra: mir_eval)")
+    e.add_argument("--split", default="dev", choices=["dev", "test"])
+    e.add_argument("--data", default="data/eval", help="evaluation root")
+    src = e.add_mutually_exclusive_group(required=True)
+    src.add_argument("--estimates", help="dir with <song_id>.json (RecognitionResult) or <song_id>.lab")
+    src.add_argument("--simulate", action="store_true", help="use the simulated recogniser")
+    src.add_argument("--sweep", action="store_true", help="robustness sweep over simulated error rates")
+    e.add_argument("--root-error", type=float, default=0.1)
+    e.add_argument("--quality-error", type=float, default=0.15)
+    e.add_argument("--jitter", type=float, default=0.1, help="boundary jitter (std, in reference time units)")
+    e.add_argument("--seed", type=int, default=0)
+    e.add_argument("--config", help="TOML file deep-merged over the default config")
+    e.add_argument("--out", default="outputs/eval", help="report directory")
     args = ap.parse_args(argv)
+
+    if args.cmd == "eval":
+        return _run_eval(args)
 
     rec = _load_input(args.input, args.beats_per_bar)
     res = analyze(rec, config=load_config(args.config), key=args.key)
