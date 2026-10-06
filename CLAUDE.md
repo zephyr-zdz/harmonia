@@ -149,6 +149,11 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
 - ChoCo v1.0.0 (Zenodo 7706751, md5 c26f2380…): annotations only; used for symbolic
   validation of the key model and for transition-prior statistics.
 
+## Results
+
+All measured numbers live in `docs/results.md` (split, data, config, git state).
+`harmonia.eval.choco` = symbolic validation of the analysis layer on ChoCo expert labels.
+
 ## Eval material
 
 Local paths of user-provided audio / scores are in `CLAUDE.local.md` (gitignored — this repo

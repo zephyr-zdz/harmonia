@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harmonia</title>
+<style>
+:root {
+  --bg: #fbfaf8; --panel: #ffffff; --ink: #1d1d1f; --muted: #6e6e73; --line: #e3e1dc;
+  --accent: #3b5bdb; --accent-soft: #e7ecff; --warn: #c2410c; --warn-soft: #fff1e6;
+  --chord: #f3f1ec; --chord-sel: #dfe6ff; --chord-edit: #e7f6ec;
+  --ev-ii: #2f9e44; --ev-sec: #e8590c; --ev-lt: #f08c00; --ev-tt: #ae3ec9; --ev-bor: #1c7ed6;
+  --ev-cad: #0c8599; --ev-mod: #c92a2a; --ev-dec: #5f3dc4; --ev-iv: #66a80f;
+  --key-a: #eef2ff; --key-b: #fff4e6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141416; --panel: #1c1c1f; --ink: #ececf0; --muted: #9a9aa3; --line: #2e2e33;
+    --accent: #8ea4ff; --accent-soft: #232a48; --warn: #ff9f66; --warn-soft: #3a2416;
+    --chord: #26262b; --chord-sel: #2c3560; --chord-edit: #1f3a2a; --key-a: #1e2238; --key-b: #33281a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141416; --panel: #1c1c1f; --ink: #ececf0; --muted: #9a9aa3; --line: #2e2e33;
+  --accent: #8ea4ff; --accent-soft: #232a48; --warn: #ff9f66; --warn-soft: #3a2416;
+  --chord: #26262b; --chord-sel: #2c3560; --chord-edit: #1f3a2a; --key-a: #1e2238; --key-b: #33281a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Hiragino Sans", "PingFang SC", system-ui, sans-serif; }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 16px;
+  border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 16px; margin: 0 8px 0 0; font-weight: 650; }
+.chip { padding: 2px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+button, select, input[type=text] { font: inherit; color: inherit; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; }
+button { cursor: pointer; } button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.spacer { flex: 1; }
+label.inline { display: inline-flex; gap: 6px; align-items: center; color: var(--muted); }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 0; }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } aside { border-left: 0 !important; border-top: 1px solid var(--line); } }
+#timeline-wrap { overflow-x: auto; overflow-y: hidden; position: relative; border-bottom: 1px solid var(--line); }
+#timeline { position: relative; min-height: 260px; }
+.lane { position: relative; border-bottom: 1px solid var(--line); }
+.lane-label { position: sticky; left: 0; z-index: 3; display: inline-block; font-size: 11px; color: var(--muted);
+  background: var(--bg); padding: 0 6px; text-transform: uppercase; letter-spacing: .04em; }
+.ruler { height: 22px; font-size: 11px; color: var(--muted); }
+.tick { position: absolute; top: 0; height: 100%; border-left: 1px solid var(--line); padding-left: 3px; }
+.keyblk { position: absolute; top: 18px; height: 22px; font-size: 12px; padding: 2px 6px; white-space: nowrap; overflow: hidden;
+  border-right: 1px solid var(--line); }
+.chord { position: absolute; top: 18px; height: 62px; background: var(--chord); border: 1px solid var(--line);
+  border-radius: 6px; padding: 4px 5px; overflow: hidden; cursor: pointer; white-space: nowrap; }
+.chord:hover { border-color: var(--accent); }
+.chord.sel { background: var(--chord-sel); border-color: var(--accent); }
+.chord.edited { background: var(--chord-edit); }
+.chord.low { border-style: dashed; border-color: var(--warn); }
+.chord .c { font-weight: 650; font-size: 13px; } .chord .n { font-size: 12px; color: var(--muted); }
+.chord .f { font-size: 11px; color: var(--accent); }
+.chord .bang { position: absolute; right: 4px; top: 2px; color: var(--warn); font-weight: 700; }
+.ev { position: absolute; height: 20px; border-radius: 5px; font-size: 11px; color: #fff; padding: 2px 6px;
+  white-space: nowrap; overflow: hidden; cursor: pointer; opacity: .92; }
+.ev.low { opacity: .5; background-image: repeating-linear-gradient(45deg, transparent 0 6px, rgba(255,255,255,.25) 6px 12px); }
+.ev.sel { outline: 2px solid var(--ink); }
+.prog { position: absolute; top: 18px; height: 18px; font-size: 11px; border: 1px solid var(--accent); color: var(--accent);
+  border-radius: 4px; padding: 0 5px; white-space: nowrap; overflow: hidden; }
+#playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--warn); z-index: 4; pointer-events: none; }
+aside { border-left: 1px solid var(--line); background: var(--panel); padding: 14px 16px; min-height: 300px; }
+aside h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 8px; }
+.big { font-size: 22px; font-weight: 700; } .muted { color: var(--muted); }
+.bar { height: 8px; background: var(--accent); border-radius: 4px; }
+.cand { display: grid; grid-template-columns: 90px 1fr 46px; gap: 8px; align-items: center; margin: 3px 0; font-size: 13px; }
+.evid { font-size: 12px; margin: 4px 0; padding-left: 10px; border-left: 2px solid var(--line); }
+.err { color: var(--warn); font-size: 12px; min-height: 16px; }
+section.below { padding: 12px 16px; display: grid; gap: 16px; grid-template-columns: 1fr 1fr; }
+@media (max-width: 900px) { section.below { grid-template-columns: 1fr; } }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr.clickable { cursor: pointer; } tr.clickable:hover { background: var(--accent-soft); }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+ul.warn { margin: 0; padding-left: 18px; color: var(--warn); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title">Harmonia</h1>
+  <span id="gkey" class="chip">—</span>
+  <span id="amb" class="chip warn" hidden>key ambiguous</span>
+  <label class="inline">key <select id="keysel"><option value="">auto</option></select></label>
+  <button id="play" class="primary" hidden>▶ Play</button>
+  <span id="clock" class="muted"></span>
+  <span class="spacer"></span>
+  <label class="inline">zoom <input id="zoom" type="range" min="10" max="160" value="45"></label>
+  <span id="editcount" class="muted"></span>
+  <button id="export">Export .lab</button>
+</header>
+<main>
+  <div>
+    <div id="timeline-wrap"><div id="timeline"><div id="playhead" hidden></div></div></div>
+    <section class="below">
+      <div><h2 class="muted" style="font-size:13px">Events</h2><table id="evtable"></table></div>
+      <div>
+        <h2 class="muted" style="font-size:13px">Named progressions</h2><table id="progtable"></table>
+        <h2 class="muted" style="font-size:13px;margin-top:14px">Warnings</h2><ul id="warnings" class="warn"></ul>
+      </div>
+    </section>
+  </div>
+  <aside id="detail"><h2>Details</h2><p class="muted">Click a chord to play it and see its candidates; click an event to see its evidence. Edit a chord below to re-run the analysis.</p></aside>
+</main>
+<audio id="player" preload="auto"></audio>
+<script>
+const EV_COLORS = { ii_V_I: "--ev-ii", ii_V: "--ev-iv", secondary_dominant: "--ev-sec", secondary_leading_tone: "--ev-lt",
+  tritone_sub: "--ev-tt", borrowed_chord: "--ev-bor", aeolian_cadence: "--ev-cad", deceptive_cadence: "--ev-dec", modulation: "--ev-mod" };
+const KEYS = ["C","Db","D","Eb","E","F","F#","G","Ab","A","Bb","B"].map(k => k + " major")
+  .concat(["C","C#","D","Eb","E","F","F#","G","G#","A","Bb","B"].map(k => k + " minor"));
+const S = { rec: null, an: null, edits: [], key: "", sel: null, hasAudio: false, stopAt: null, name: "" };
+const $ = id => document.getElementById(id);
+const player = $("player");
+const fmt = t => S.an && S.an.time_unit === "beat" ? `beat ${t.toFixed(1)}` :
+  `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}.${String(Math.floor((t % 1) * 10))}`;
+const color = t => `var(${EV_COLORS[t] || "--accent"})`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+async function load() {
+  const r = await fetch("/api/state"); const st = await r.json();
+  S.rec = st.recognition; S.an = st.analysis; S.hasAudio = st.has_audio; S.name = st.name;
+  $("title").textContent = st.name;
+  for (const k of KEYS) { const o = document.createElement("option"); o.value = k; o.textContent = k; $("keysel").appendChild(o); }
+  if (S.hasAudio) { player.src = "/audio"; $("play").hidden = false; $("playhead").hidden = false; }
+  render();
+}
+
+async function reanalyse() {
+  const r = await fetch("/api/analyze", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ edits: S.edits, key: S.key || null }) });
+  const j = await r.json();
+  if (!r.ok) { const e = document.querySelector("#detail .err"); if (e) e.textContent = j.error; S.edits.pop(); return false; }
+  S.an = j.analysis; render(); return true;
+}
+
+function pps() { return +$("zoom").value; }
+function duration() { const s = S.an.segments; return s.length ? s[s.length - 1].end : 1; }
+function editedAt(seg) { return S.edits.some(e => e.start <= (seg.start + seg.end) / 2 && (seg.start + seg.end) / 2 < e.end); }
+
+function packRows(items) {  // greedy interval packing for overlapping events
+  const rows = []; return items.map(it => {
+    let r = rows.findIndex(end => end <= it.start + 1e-6); if (r < 0) { r = rows.length; rows.push(0); }
+    rows[r] = it.end; return r; });
+}
+
+function render() {
+  const an = S.an, P = pps(), W = Math.max(duration() * P, 600);
+  const tl = $("timeline"); tl.style.width = W + "px";
+  tl.querySelectorAll(".lane").forEach(n => n.remove());
+  const gk = an.global_key;
+  $("gkey").textContent = `${gk.key.label} · p=${gk.key.prob.toFixed(2)}${gk.source === "given" ? " (given)" : ""}`;
+  $("amb").hidden = !gk.ambiguous;
+  $("editcount").textContent = S.edits.length ? `${S.edits.length} edit(s)` : "";
+
+  // ruler: bars when known, else seconds
+  const ruler = lane("time", 22, "ruler");
+  const step = P > 60 ? 2 : P > 25 ? 5 : 10;
+  for (let t = 0; t < duration(); t += step) tick(ruler, t * P, an.time_unit === "beat" ? `${t}` : fmt(t).replace(/\.\d$/, ""));
+  const barStarts = {}; for (const f of S.rec.frames) if (f.beat_in_bar === 1 && f.bar && !(f.bar in barStarts)) barStarts[f.bar] = f.time;
+
+  const keys = lane("key", 44);
+  an.key_regions.forEach((r, i) => { const d = el("div", "keyblk", keys); place(d, r.start, r.end);
+    d.style.background = `var(${i % 2 ? "--key-b" : "--key-a"})`; d.textContent = `${r.key.label} (${r.key.prob.toFixed(2)})`; });
+
+  const chords = lane("chords · numerals", 84);
+  for (const s of an.segments) {
+    const d = el("div", "chord", chords); place(d, s.start, s.end);
+    if (s.low_confidence) d.classList.add("low"); if (editedAt(s)) d.classList.add("edited");
+    if (S.sel && S.sel.kind === "seg" && s.start <= S.sel.t && S.sel.t < s.end) d.classList.add("sel");
+    d.innerHTML = `<div class="c">${esc(s.chord)}</div><div class="n">${esc(s.roman ? s.roman.display : "–")}</div>` +
+      `<div class="f">${esc(s.functions.join(" "))}</div>` + (s.low_confidence ? `<span class="bang" title="${esc(s.warnings.join("; "))}">!</span>` : "");
+    d.title = `${s.chord}  ${s.roman ? s.roman.display : ""}  conf ${s.confidence}`;
+    d.onclick = () => { select({ kind: "seg", t: (s.start + s.end) / 2 }); playRange(s.start, s.end); };
+  }
+  const evs = an.events.filter(e => e.type !== "modulation");
+  const rows = packRows(evs.map(e => ({ start: e.start, end: e.end })));
+  const nrows = Math.max(1, ...rows.map(r => r + 1));
+  const evl = lane("events", 22 + nrows * 24);
+  evs.forEach((e, k) => { const d = el("div", "ev", evl); place(d, e.start, e.end, 18 + rows[k] * 24);
+    d.style.background = color(e.type); if (e.low_confidence) d.classList.add("low");
+    if (S.sel && S.sel.kind === "ev" && S.sel.id === e.id) d.classList.add("sel");
+    d.textContent = `${e.label} ${(e.confidence * 100).toFixed(0)}%`; d.title = d.textContent;
+    d.onclick = () => { select({ kind: "ev", id: e.id }); playRange(e.start, e.end); }; });
+  for (const m of an.events.filter(e => e.type === "modulation")) {
+    const d = el("div", "tick", evl); d.style.left = m.start * P + "px"; d.style.borderLeft = "2px solid var(--ev-mod)";
+    d.style.color = "var(--ev-mod)"; d.textContent = "⇢ " + m.attributes.to; d.style.fontSize = "11px"; }
+  if ((an.progressions || []).length) {
+    const pl = lane("named progressions", 40);
+    for (const p of an.progressions) { const d = el("div", "prog", pl); place(d, p.start, p.end); d.textContent = p.name; d.title = `${p.alias}: ${p.numerals.join("–")} in ${p.reference_key}`; }
+  }
+  renderTables(); renderDetail();
+}
+
+function lane(name, h, cls) {
+  const d = el("div", "lane " + (cls || ""), $("timeline")); d.style.height = h + "px";
+  const l = el("span", "lane-label", d); l.textContent = name; return d;
+}
+function el(tag, cls, parent) { const d = document.createElement(tag); d.className = cls; parent.appendChild(d); return d; }
+function place(d, s, e, top) { const P = pps(); d.style.left = s * P + "px"; d.style.width = Math.max((e - s) * P - 2, 3) + "px"; if (top !== undefined) d.style.top = top + "px"; }
+function tick(parent, x, text) { const t = el("div", "tick", parent); t.style.left = x + "px"; t.textContent = text; }
+
+function renderTables() {
+  const an = S.an;
+  $("evtable").innerHTML = "<tr><th>time</th><th>event</th><th>chords</th><th>conf</th></tr>" + an.events.map(e =>
+    `<tr class="clickable" data-id="${e.id}"><td>${fmt(e.start)}</td><td><span class="dot" style="background:${color(e.type)}"></span>${esc(e.label)}</td>` +
+    `<td>${esc(e.chords.join(" → "))}<br><span class="muted">${esc(e.functions.join(" → "))}</span></td>` +
+    `<td>${e.confidence.toFixed(2)}${e.low_confidence ? " ⚠" : ""}</td></tr>`).join("");
+  $("evtable").querySelectorAll("tr.clickable").forEach(tr => tr.onclick = () => {
+    const e = an.events.find(x => x.id === tr.dataset.id); select({ kind: "ev", id: e.id }); scrollTo(e.start); playRange(e.start, e.end || e.start + 4); });
+  $("progtable").innerHTML = (an.progressions || []).map(p => `<tr><td>${fmt(p.start)}</td><td>${esc(p.name)}</td><td class="muted">${esc(p.numerals.join("–"))} (${esc(p.reference_key)})</td></tr>`).join("") || "<tr><td class='muted'>none</td></tr>";
+  const w = [...(an.warnings || [])]; $("warnings").innerHTML = w.length ? w.slice(0, 30).map(x => `<li>${esc(x)}</li>`).join("") : "<li class='muted' style='color:var(--muted)'>none</li>";
+}
+
+function renderDetail() {
+  const box = $("detail"), an = S.an;
+  if (!S.sel) return;
+  if (S.sel.kind === "seg") {
+    // selection is a time, so it survives re-segmentation after edits
+    const s = an.segments.find(x => x.start <= S.sel.t && S.sel.t < x.end); if (!s) return;
+    box.innerHTML = `<h2>Chord · ${fmt(s.start)}–${fmt(s.end)}</h2>
+      <div class="big">${esc(s.chord)}</div>
+      <div>${esc(s.roman ? s.roman.display : "–")} <span class="muted">in ${esc(s.key ? s.key.label : "?")} (key p=${s.key ? s.key.prob.toFixed(2) : "–"})</span></div>
+      ${s.functions.length ? `<div style="color:var(--accent)">function: ${esc(s.functions.join(", "))}</div>` : ""}
+      ${s.bass ? `<div class="muted">bass ${esc(s.bass)}</div>` : ""}
+      <h2 style="margin-top:14px">Candidates</h2>
+      ${s.candidates.map(c => `<div class="cand"><span>${esc(c.label)}</span><div class="bar" style="width:${Math.max(c.prob * 100, 2)}%"></div><span>${c.prob.toFixed(2)}</span></div>`).join("")}
+      ${s.warnings.length ? `<ul class="warn">${s.warnings.map(w => `<li>${esc(w)}</li>`).join("")}</ul>` : ""}
+      <h2 style="margin-top:14px">Edit chord</h2>
+      <div style="display:flex;gap:6px"><input id="editval" type="text" value="${esc(s.chord)}" style="flex:1"><button id="apply" class="primary">Apply</button></div>
+      <div class="err"></div>
+      ${editedAt(s) ? `<button id="revert">Revert this edit</button>` : ""}
+      <p class="muted" style="font-size:12px">Pop (Cmaj7, F#m7-5, C(onE)) or Harte (C:maj7). The analysis re-runs on apply.</p>`;
+    $("apply").onclick = async () => { S.edits = S.edits.filter(e => !(e.start <= s.start && s.end <= e.end));
+      S.edits.push({ start: s.start, end: s.end, chord: $("editval").value }); await reanalyse(); };
+    $("editval").onkeydown = ev => { if (ev.key === "Enter") $("apply").click(); };
+    if ($("revert")) $("revert").onclick = async () => { const mid = (s.start + s.end) / 2;
+      S.edits = S.edits.filter(e => !(e.start <= mid && mid < e.end)); await reanalyse(); };
+  } else {
+    const e = an.events.find(x => x.id === S.sel.id); if (!e) return;
+    box.innerHTML = `<h2><span class="dot" style="background:${color(e.type)}"></span>${esc(e.type)}</h2>
+      <div class="big">${esc(e.label)}</div>
+      <div>confidence <b>${e.confidence.toFixed(2)}</b>${e.low_confidence ? ' <span class="chip warn">low</span>' : ""} <span class="muted">in ${esc(e.key || "")}</span></div>
+      <div style="margin-top:6px">${esc(e.chords.join(" → "))}</div><div class="muted">${esc(e.functions.join(" → "))}</div>
+      <h2 style="margin-top:14px">Evidence (product = confidence)</h2>
+      ${e.evidence.map(v => `<div class="evid"><b>${esc(v.kind)}</b> ×${v.factor.toFixed(2)}<br>${esc(v.detail)}</div>`).join("")}
+      ${e.alternatives.length ? `<h2 style="margin-top:14px">Alternative readings</h2>` + e.alternatives.map(a => `<div class="evid">${esc(a.label)} <span class="muted">(${esc(a.type)}, ${a.confidence.toFixed(2)})</span></div>`).join("") : ""}`;
+  }
+}
+
+function select(s) { S.sel = s; render(); }
+function scrollTo(t) { const w = $("timeline-wrap"); w.scrollLeft = Math.max(t * pps() - w.clientWidth / 3, 0); }
+function playRange(s, e) { if (!S.hasAudio || S.an.time_unit !== "second") return; player.currentTime = s; S.stopAt = e; player.play(); }
+$("play").onclick = () => { if (player.paused) { S.stopAt = null; player.play(); } else player.pause(); };
+player.onplay = () => $("play").textContent = "❚❚ Pause"; player.onpause = () => $("play").textContent = "▶ Play";
+function frame() {
+  if (S.hasAudio && S.an) { const t = player.currentTime; $("playhead").style.left = t * pps() + "px"; $("clock").textContent = fmt(t);
+    if (S.stopAt !== null && t >= S.stopAt) { player.pause(); S.stopAt = null; }
+    if (!player.paused && S.stopAt === null) { const w = $("timeline-wrap"), x = t * pps(); if (x > w.scrollLeft + w.clientWidth * .8) w.scrollLeft = x - w.clientWidth * .2; } }
+  requestAnimationFrame(frame);
+}
+$("zoom").oninput = render;
+$("keysel").onchange = async () => { S.key = $("keysel").value; await reanalyse(); };
+$("export").onclick = async () => { const r = await fetch("/api/export", { method: "POST", headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ edits: S.edits, key: S.key || null }) }); const j = await r.json();
+  alert(r.ok ? `Saved ${j.lab}\nand ${j.analysis}` : j.error); };
+document.addEventListener("keydown", ev => { if (ev.code === "Space" && ev.target.tagName !== "INPUT") { ev.preventDefault(); $("play").click(); } });
+load(); requestAnimationFrame(frame);
+</script>
+</body>
+</html>

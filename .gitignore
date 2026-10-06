@@ -10,6 +10,7 @@ dist/
 # Local-only notes (contain personal paths)
 CLAUDE.local.md
 .claude/settings.local.json
+.claude/launch.json
 
 # Evaluation data: copyrighted audio / annotations never go into this public repo
 data/eval/**

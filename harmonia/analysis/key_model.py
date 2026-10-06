@@ -36,7 +36,7 @@ MAJOR_FIT: dict[int, dict[str, float]] = {
     7: {"maj": 0.3, "dom": 0.5, "min": -1.5, "sus": 0.0, "aug": -1.2},      # V (dominant); v borrowed
     8: {"maj": -1.2, "dom": -2.0},                                          # bVI borrowed; bVI7
     9: {"min": 0.0, "maj": -1.5, "dom": -1.2, "sus": -0.8},                 # vi; VI(7) = V(7)/ii
-    10: {"maj": -1.2, "dom": -1.5},                                         # bVII borrowed; bVII7 backdoor
+    10: {"maj": -1.2, "dom": -1.5},                                          # bVII borrowed; bVII7 backdoor
     11: {"dim": -0.8, "hdim": -0.5, "maj": -2.0, "dom": -1.5},              # vii° / viiø7; VII(7) = V(7)/iii
 }
 MINOR_FIT: dict[int, dict[str, float]] = {
@@ -113,14 +113,28 @@ def emission_matrix(segs: list[SegData], cfg: dict) -> list[list[float]]:
                 if not key.is_major:
                     e += kc["minor_bias"]
                 row[ki] = w * e
-                # cadence: V / V7 of this key immediately followed by its tonic triad
+                # cadence: V7 (full weight) or V triad (cadence_triad_factor) immediately followed
+                # by the tonic triad. A bare triad V→I is weaker evidence because it is also
+                # the ubiquitous I→IV of the key a fifth lower.
                 if prev is not None:
-                    dom = prev.dist.mass((key.tonic + 7) % 12, lambda ch: 1.0 if ch.qclass in ("maj", "dom") else 0.0)
+                    tf = kc["cadence_triad_factor"]
+                    dom = prev.dist.mass((key.tonic + 7) % 12,
+                                         lambda ch: 1.0 if ch.qclass == "dom" else (tf if ch.qclass == "maj" else 0.0))
                     tq = "maj" if key.is_major else "min"
                     ton = seg.dist.mass(key.tonic, lambda ch, tq=tq: 1.0 if ch.qclass == tq else 0.0)
                     row[ki] += kc["cadence_bonus"] * dom * ton
             prev = seg
         out.append(row)
+    # Tonic salience at the boundaries: songs (and excerpts) overwhelmingly begin and end on
+    # the tonic chord, which separates a key from its subdominant / Mixolydian neighbour.
+    b = kc["boundary_tonic_bonus"]
+    rooted = [i for i, s in enumerate(segs) if any(c.chord.root is not None and c.prob > 0 for c in s.dist.cands)]
+    if b and rooted:
+        where = {"both": {rooted[0], rooted[-1]}, "last": {rooted[-1]}, "first": {rooted[0]}}[kc["boundary_positions"]]
+        for i in where:
+            for ki, key in enumerate(ALL_KEYS):
+                tq = "maj" if key.is_major else "min"
+                out[i][ki] += b * segs[i].dist.mass(key.tonic, lambda ch, tq=tq: 1.0 if ch.qclass == tq else 0.0)
     return out
 
 

@@ -20,7 +20,12 @@ default_seconds_per_beat = 0.5   # used only to weight inputs with no beat info 
 switch_penalty = 6.0             # log-cost of changing key between two chords
 minor_bias = -0.1                # per-weight-unit prior against minor (pop corpora are mostly major;
                                  # Japanese analysis labels relative-ambiguous loops in major)  [ASK]
-cadence_bonus = 1.0              # V(7) -> I (or V(7) -> i) supports that key
+cadence_bonus = 1.0              # V7 -> I (or V7 -> i) supports that key
+cadence_triad_factor = 0.3       # plain V triad -> I gets this fraction (it is also I -> IV of the key a 5th
+                                 # below). 1.0 -> 0.3 chosen on ChoCo dev 2026-10-06 (see CLAUDE.md)
+boundary_tonic_bonus = 0.0       # bonus for the tonic triad at boundary chord(s). OFF: helps Western rock
+                                 # (ChoCo dev) but breaks J-pop conventions (songs/loops opening on IV) [ASK]
+boundary_positions = "both"      # both | last | first
 seventh_off_scale_penalty = 0.6  # maj7 / m7 / 6 whose added tone is outside the key
 min_region_beats = 16            # key regions shorter than this are merged (tonicization, not modulation)
 beats_per_weight_unit = 4.0      # a chord lasting one 4/4 bar gets weight 1
