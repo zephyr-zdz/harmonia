@@ -31,3 +31,6 @@ models/
 *.onnx
 
 .DS_Store
+
+# External raw datasets (downloaded, immutable, never committed)
+data/external/

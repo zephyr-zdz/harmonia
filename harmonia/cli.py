@@ -12,9 +12,14 @@ from .config import load_config
 from .io import lab_to_recognition, parse_progression
 from .schema import AnalysisResult, RecognitionResult
 
+AUDIO_SUFFIXES = {".mp3", ".m4a", ".flac", ".wav", ".aiff", ".aif", ".ogg", ".opus"}
 
-def _load_input(src: str, beats_per_bar: int) -> RecognitionResult:
+
+def _load_input(src: str, beats_per_bar: int, cfg: dict | None = None) -> RecognitionResult:
     p = Path(src)
+    if p.is_file() and p.suffix.lower() in AUDIO_SUFFIXES:
+        from .frontend.pipeline import transcribe  # optional 'audio' extra
+        return transcribe(p, cfg)
     if src == "-":
         return parse_progression(sys.stdin.read(), beats_per_bar)
     if p.is_file():
@@ -93,6 +98,12 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--beats-per-bar", type=int, default=4)
     a.add_argument("--json", action="store_true", help="print the AnalysisResult JSON")
     a.add_argument("-o", "--output", help="write the AnalysisResult JSON to this path")
+    a.add_argument("--save-recognition", help="audio input: also write the RecognitionResult JSON here")
+    t = sub.add_parser("transcribe", help="audio -> RecognitionResult JSON (needs the 'audio' extra)")
+    t.set_defaults(cmd="transcribe")
+    t.add_argument("input", help="audio file (mp3 / m4a / flac / wav ...)")
+    t.add_argument("-o", "--output", help="write JSON here instead of stdout")
+    t.add_argument("--config", help="TOML file deep-merged over the default config")
     e = sub.add_parser("eval", help="evaluate on data/eval/<split> (needs the 'eval' extra: mir_eval)")
     e.add_argument("--split", default="dev", choices=["dev", "test"])
     e.add_argument("--data", default="data/eval", help="evaluation root")
@@ -111,8 +122,21 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "eval":
         return _run_eval(args)
 
-    rec = _load_input(args.input, args.beats_per_bar)
-    res = analyze(rec, config=load_config(args.config), key=args.key)
+    cfg = load_config(args.config)
+    if args.cmd == "transcribe":
+        from .frontend.pipeline import transcribe
+        rec = transcribe(args.input, cfg)
+        text = json.dumps(rec.to_dict(), ensure_ascii=False, indent=2)
+        if args.output:
+            Path(args.output).write_text(text, encoding="utf-8")
+            print(f"wrote {args.output} ({len(rec.frames)} beats)", file=sys.stderr)
+        else:
+            print(text)
+        return 0
+    rec = _load_input(args.input, args.beats_per_bar, cfg)
+    if args.save_recognition:
+        Path(args.save_recognition).write_text(json.dumps(rec.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+    res = analyze(rec, config=cfg, key=args.key)
     if args.output:
         Path(args.output).write_text(res.to_json(), encoding="utf-8")
     print(res.to_json() if args.json else format_table(res))

@@ -10,8 +10,8 @@ Target styles: J-pop / City Pop / pop. Jazz reharmonisation accuracy is a non-go
 | Phase | Scope | State |
 |---|---|---|
 | 1 | Symbolic analysis layer (chord symbols → keys / numerals / events) | done (accepted 2026-10-06) |
-| 2 | Evaluation framework (mir_eval chord metrics, event P/R, error attribution) | in progress |
-| 3 | Audio front end (source separation, beats, bass, chord recognition, Viterbi, local key) | not started — research options first, user chooses |
+| 2 | Evaluation framework (mir_eval chord metrics, event P/R, error attribution) | framework done; real data pending (IdolSongsJp gated, user annotations) |
+| 3 | Audio front end | option A running end-to-end (docs/phase3_options.md); calibration pending dev data |
 | 4 | UI (timeline, playback, manual chord edits → re-analysis) | not started |
 | 5 | Optional LLM narration of events | not started |
 
@@ -25,6 +25,9 @@ uv sync --extra eval                                 # .venv with mir_eval (Phas
 .venv/bin/python -m harmonia eval --split dev --estimates outputs/<run>   # real system output
 .venv/bin/python -m harmonia eval --split dev --simulate --seed 0         # simulated recogniser
 .venv/bin/python -m harmonia eval --split dev --sweep                     # robustness curve
+uv sync --extra eval --extra audio                                       # + torch, lv-chordia, beat-this, demucs
+.venv/bin/python -m harmonia analyze song.flac --save-recognition rec.json   # audio end to end
+.venv/bin/python -m harmonia transcribe song.mp3 -o rec.json                 # recognition layer only
 python3 -m harmonia analyze "| Fmaj7 | E7 | Am7 | Gm7 C7 |" --key "C major"
 python3 -m harmonia analyze song.lab --json -o out.json
 ```
@@ -63,6 +66,14 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
   (per-song + aggregate report with provenance: git commit, config hash, seed, versions).
   Attribution logic: analysis run on reference chords = "oracle" (analysis-layer errors);
   on recognised chords = "system"; the difference is recognition-induced.
+- `harmonia/frontend/` (Phase 3, option A) — `beats.py` (Beat This!, librosa fallback),
+  `chords.py` (lv-chordia ensemble; we tap its decomposition heads + observation function,
+  not its final labels), `decode.py` (beat-synchronous HMM with root-motion transition prior,
+  forward–backward → per-beat top-k), `pipeline.py` (`transcribe()` → RecognitionResult).
+  Chord models get the FULL MIX (they were trained on mixes); separation is optional, bass only.
+- Model weights live in `models/` (gitignored): `models/beat_this/final0.ckpt` (81 MB, MIT,
+  https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt, sha256 8c328b45…).
+  lv-chordia ships its 28 MB ensemble inside the package.
 - `harmonia/default_config.toml` — every threshold / weight / borrowed-chord table entry,
   with theory comments. Override with `--config`.
 
@@ -130,6 +141,13 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
      failed ii–V of ♭III; it stays a borrowed ♭VII7 with `backdoor`.
   5. `♭VI7` borrowed-table entry kept.
 - Repo is public on GitHub (zephyr-zdz/harmonia). No license chosen yet (user's call).
+- **2026-10-06 (user)**: download IdolSongsJp + ChoCo; user annotates MyGO songs (online
+  resources allowed); start Phase 3 selection. Phase 3 proceeds with option A under the
+  session goal; every component is a swappable backend (user may override).
+- **IdolSongsJp license**: non-commercial research; using its tracks for model TRAINING is
+  prohibited → evaluation only. Gated on HuggingFace: the user must accept terms and log in.
+- ChoCo v1.0.0 (Zenodo 7706751, md5 c26f2380…): annotations only; used for symbolic
+  validation of the key model and for transition-prior statistics.
 
 ## Eval material
 

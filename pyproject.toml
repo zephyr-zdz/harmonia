@@ -14,6 +14,16 @@ harmonia = "harmonia.cli:main"
 eval = [
     "mir-eval>=0.8",
 ]
+audio = [
+    "audioop-lts>=0.2.2 ; python_full_version >= '3.13'",
+    "beat-this>=1.1",
+    "demucs>=4.1",
+    "librosa>=0.10",
+    "lv-chordia",
+    "soundfile>=0.14.0",
+    "torch>=2.14.1",
+    "torchaudio>=2.11.0",
+]
 
 [dependency-groups]
 dev = ["pytest>=8"]
@@ -24,3 +34,14 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.uv]
+# Supported platforms: Apple Silicon (dev / inference) and Linux (optional GPU training box).
+# Intel macOS is excluded: demucs pins numpy<2 there, incompatible with lv-chordia.
+environments = [
+    "sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "sys_platform == 'linux'",
+]
+
+[tool.uv.sources]
+lv-chordia = { git = "https://github.com/openmirlab/lv-chordia.git" }

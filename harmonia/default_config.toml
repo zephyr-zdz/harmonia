@@ -258,3 +258,24 @@ note = "I–V–vi–iii–IV–I–IV–V (Pachelbel)."
 enabled = true
 prepared = 1.0       # V preceded by ii / IV
 seventh_only = 0.8   # V7 without predominant preparation; bare unprepared V→vi is not reported
+
+# =======================================================================================
+# Recognition layer (Phase 3, option A — see docs/phase3_options.md)
+[frontend]
+top_k = 5
+min_candidate_prob = 0.02
+
+[frontend.beats]
+backend = "beat_this"                     # beat_this | librosa
+checkpoint = "models/beat_this/final0.ckpt"
+device = "cpu"
+
+[frontend.chords]
+backend = "lv_chordia"
+vocabulary = "submission"                 # submission (301 chords) | ismir2017 | full
+
+[frontend.decode]
+obs_weight = 1.0          # temperature on beat-mean frame log-likelihood (calibrate on dev only)
+change_penalty = 2.0      # log-cost of a chord change between beats (on top of the prior)
+no_chord_change = -1.0    # extra cost for changes into / out of N
+transition_prior = ""     # optional JSON from harmonia.frontend.transition_prior (ChoCo stats)
