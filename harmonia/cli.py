@@ -125,6 +125,11 @@ def main(argv: list[str] | None = None) -> int:
     u.add_argument("--key", help="fix the key, e.g. 'C major'")
     u.add_argument("--config", help="TOML file deep-merged over the default config")
     u.add_argument("--no-browser", action="store_true")
+    rp = sub.add_parser("report", help="section-by-section harmonic summary (markdown)")
+    rp.set_defaults(cmd="report")
+    rp.add_argument("input", nargs="+", help="recognition .json, audio, .lab or progression text files")
+    rp.add_argument("-o", "--output", help="write markdown here instead of stdout")
+    rp.add_argument("--config", help="TOML file deep-merged over the default config")
     bt = sub.add_parser("batch", help="transcribe + analyse every audio file under a directory")
     bt.set_defaults(cmd="batch")
     bt.add_argument("input", help="directory of audio files (searched recursively)")
@@ -143,6 +148,22 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd == "eval":
         return _run_eval(args)
+    if args.cmd == "report":
+        from .report import summarise, to_markdown
+        cfg = load_config(args.config)
+        parts = []
+        for src in args.input:
+            rec = _load_input(src, 4, cfg)
+            res = analyze(rec, config=cfg)
+            name = Path(src).name.replace(".recognition.json", "")
+            parts.append(to_markdown(name, rec, res, summarise(rec, res)))
+        text = "\n".join(parts)
+        if args.output:
+            Path(args.output).write_text(text, encoding="utf-8")
+            print(f"wrote {args.output}", file=sys.stderr)
+        else:
+            print(text)
+        return 0
 
     cfg = load_config(args.config)
     if args.cmd == "transcribe":

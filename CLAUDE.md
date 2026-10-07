@@ -34,6 +34,7 @@ uv sync --extra eval --extra audio                                       # + tor
 .venv/bin/python -m harmonia transcribe song.mp3 -o rec.json                 # recognition layer only
 .venv/bin/python -m harmonia batch data/external/user_music -o outputs/runs/<name>   # whole folder
 .venv/bin/python -m harmonia ui                                              # song library UI (127.0.0.1:8765)
+.venv/bin/python -m harmonia report outputs/runs/<run>/*.recognition.json -o report.md   # per-section summary
 python3 -m harmonia analyze "| Fmaj7 | E7 | Am7 | Gm7 C7 |" --key "C major"
 python3 -m harmonia analyze song.lab --json -o out.json
 ```
@@ -84,6 +85,8 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
   meter m = bar/beat, BPM = 60·m/bar, regularised bar grid with filled / dropped / genuinely
   irregular bars), `pipeline.py` (`transcribe()` → RecognitionResult; m4a etc. decoded once
   via ffmpeg into outputs/cache/decoded/).
+- `harmonia/report.py` — `harmonia report`: per section bar numerals, shortest loop, keys, named
+  progressions, confident events, low-confidence share (post-processing of the two JSON layers).
 - `harmonia/batch.py` — `harmonia batch <dir> -o outputs/runs/<name>` (per-song JSON + summary.md).
 - `harmonia/ui/` — `harmonia ui [dirs/files…]` (default `[ui].library`): local timeline UI with a song
   library (select / ◀ ▶ / `[` `]`), background transcription of new audio, cached recognitions
