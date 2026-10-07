@@ -321,3 +321,29 @@ seventh_bias = 1.0        # log-bonus for vocabulary chords with a 7th (class-pr
 
 [ui]
 library = ["data/external/user_music"]   # default song library for `harmonia ui` (dirs or files, relative to repo)
+
+# =======================================================================================
+# Song structure (option A, frontend/structure.py; user 2026-10-07). All values are priors,
+# [UNCERTAIN] until scored on annotated sections (none yet).
+[structure]
+enabled = true
+embed_bars = 2              # repetition compares 2-bar windows (harmony + harmonic rhythm)
+identity_weight = 1.0       # repetition feature: chord identity (root × maj/min posteriors) vs chroma.
+                            # Chroma alone over-merged sections (same-key bars all look alike)
+shift_penalty = 0.05        # transposed repeats score slightly lower than exact ones
+repetition_weight = 0.5     # boundary novelty: repetition vs timbre/loudness homogeneity
+kernel_bars = 4             # Foote checkerboard half-width (bars)
+min_bars = 4                # shortest section except first / last
+novelty_weight = 2.0        # DP: reward for a boundary on a novelty peak (novelty in [0, 1])
+boundary_cost = 1.0         # DP: cost per section
+prior_multiple_of_4 = 0.3   # DP: section lengths that are multiples of 4 bars
+prior_other = -0.5          # DP: any other length
+length_prior = { "8" = 1.0, "16" = 1.0, "4" = 0.5, "12" = 0.3 }
+cluster_threshold = 0.70    # mean aligned repetition similarity (±slack) to call two sections the same. Dev: pairs share
+                            # the reference chord 85 %, 66 % of bars grouped (0.8: 93 % / 51 %; 0.6: 82 % / 76 %)
+slack_bars = 2              # sections may be compared with their bars offset by up to this many
+chorus_repeat_weight = 0.3  # chorus score: loudness z + this × occurrences + late bonus
+chorus_late_bonus = 0.5     # a chorus occurrence in the last 40 % of the song
+pool_weight = 0.0           # share chord evidence between repeats (0 = off; chosen on dev)
+pool_min_similarity = 0.85  # only bar pairs that clearly repeat are pooled
+

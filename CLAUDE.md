@@ -75,6 +75,9 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
   not its final labels), `decode.py` (beat-synchronous HMM with root-motion transition prior,
   forward–backward → per-beat top-k; chord changes cost extra off the bar line / half bar),
   `calibrate.py` (dev-only grid over [frontend.decode] with cached network features),
+  `structure.py` (sections: bar-level chord-identity repetition, novelty + phrase-prior DP,
+  clustering with one transposition per section pair, J-pop labelling rules; frames get
+  `section`, RecognitionResult.source["structure"] lists the sections),
   `meter.py` (user suggestion: BPM first, then bar lines — mode-seeded beat & bar periods,
   meter m = bar/beat, BPM = 60·m/bar, regularised bar grid with filled / dropped / genuinely
   irregular bars), `pipeline.py` (`transcribe()` → RecognitionResult; m4a etc. decoded once
@@ -187,6 +190,10 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
   J-pop second halves; descending bass 1–7–6–5–(4|♯4)); idiom matcher gained alternatives, bass
   constraints, `min_length`, geometric-mean confidence. [UNCERTAIN] whether the ♯4-bass variant
   (II/♯4, ♯ivø7) is still called カノン進行.
+- **2026-10-07 (user)**: section detection → option A (own, `frontend/structure.py`, no new deps);
+  B (all-in-one) / C (SongFormer) feasibility in docs/structure_options.md, nothing installed.
+  Chord pooling across repeats measured useless on dev → off. Labels unscored until the user's
+  score transcriptions carry `[Verse]` / `[Chorus]` markers.
 - ChoCo v1.0.0 (Zenodo 7706751, md5 c26f2380…): annotations only; used for symbolic
   validation of the key model and for transition-prior statistics.
 

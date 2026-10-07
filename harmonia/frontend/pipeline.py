@@ -19,6 +19,7 @@ from .beats import track_beats
 from .meter import build_grid
 from .chords import frame_evidence
 from .decode import decode
+from .structure import from_recognition_inputs as analyse_structure, pool_posteriors
 
 AUDIO_SUFFIXES = {".mp3", ".m4a", ".flac", ".wav", ".aiff", ".aif", ".ogg", ".opus"}
 
@@ -96,6 +97,15 @@ def from_features(ev, grid, source_path: Path, audio_path: Path, cfg: dict) -> R
         period = 0.5
 
     dec = decode(ev, edges, dc, load_prior(cfg), positions=pos, beats_per_bar=meter.beats_per_bar if meter else None)
+    structure = None
+    if cfg.get("structure", {}).get("enabled") and meter is not None:
+        try:
+            structure = analyse_structure(audio_path, edges, bars, meter.beats_per_bar, dec.posteriors, dec.labels, cfg)
+            warnings += [f"structure: {w}" for w in structure.warnings]
+            dec.posteriors = pool_posteriors(dec.posteriors, structure, cfg)
+        except Exception as e:  # structure is optional: report, never fail the transcription
+            warnings.append(f"structure analysis failed: {type(e).__name__}: {e}")
+            structure = None
     frames: list[Frame] = []
     n_low = 0
     for b in range(len(edges) - 1):
@@ -114,7 +124,8 @@ def from_features(ev, grid, source_path: Path, audio_path: Path, cfg: dict) -> R
         dur = float(edges[b + 1] - edges[b])
         frames.append(Frame(time=float(edges[b]), duration=dur, candidates=cands,
                             beats=float(min(max(dur / period, 0.25), 4.0)),
-                            bass=bass, bar=bars[b], beat_in_bar=pos[b]))
+                            bass=bass, bar=bars[b], beat_in_bar=pos[b],
+                            section=structure.label_at(float(edges[b])) if structure else None))
     if n_low:
         warnings.append(f"{n_low}/{len(frames)} beats have top chord probability < "
                         f"{cfg['general']['low_confidence_threshold']}")
@@ -129,7 +140,8 @@ def from_features(ev, grid, source_path: Path, audio_path: Path, cfg: dict) -> R
                     "time_signature": meter.time_signature, "bar_seconds": round(meter.bar_period, 4),
                     "tempo_cv": round(meter.tempo_cv, 4), "n_bars": int(len(meter.bar_starts)),
                     "irregular_bars": meter.irregular_bars},
-                "decode": {k: v for k, v in dc.items()}},
+                "decode": {k: v for k, v in dc.items()},
+                "structure": structure.to_dict() if structure else None},
         warnings=warnings,
     )
 

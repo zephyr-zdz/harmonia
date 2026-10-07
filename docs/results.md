@@ -147,3 +147,27 @@ geometric mean on recognitions: 王道 79 → 85, 小室 45 → 48 (references u
 Key scores unchanged (rock tonic .770, iso .758, robbie .850, IdolSongsJp dev local .950 / .952).
 Known miss: 栞 (recogniser and bass head hear root-position I where the canon needs bass 5).
 No gold idiom labels exist yet, so this is inspection, not a P/R number.
+
+## 2026-10-07 — song structure, option A (user request)
+
+`harmonia/frontend/structure.py`, config `[structure]`; feasibility of B / C in
+docs/structure_options.md. No structure ground truth exists yet (IdolSongsJp has none), so the
+section LABELS are unscored. What can be measured on IdolSongsJp dev:
+
+Pairing check — bars the analysis calls "the same section" (same group and transposition,
+aligned with its offset) should carry the same reference chord (root, maj/min):
+
+| repetition feature / threshold | pairs equal | bars in repeated groups |
+|---|---|---|
+| chroma cosine, 0.80 (first version) | 0.30 | — (badly over-merged: 12 "choruses") |
+| chord identity, per-bar shift, 0.8 | 0.81 | — |
+| chord identity, one shift per section pair, ±2-bar slack, 0.6 | 0.82 | 0.76 |
+| **same, 0.7 (chosen)** | **0.85** | **0.66** |
+| same, 0.8 | 0.93 | 0.51 |
+
+Chord pooling across repeats (log-linear, pool_weight w; dev chord scores):
+w = 0 → majmin 0.8261 / sevenths 0.6638; w = 0.5 → 0.8276 / 0.6667 (≤ 0.003, noise; with the
+first, wrong structure w = 0.5 lost 0.024). Repeats do not give independent second opinions —
+the recogniser repeats its mistakes when the arrangement repeats — so pooling stays OFF.
+Structure is kept for analysis (sections, last-chorus modulation: 帰り道 final chorus found
++3 semitones, matching the key annotation G♭ → A at 280 s) and the UI.

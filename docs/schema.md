@@ -28,6 +28,13 @@ Bump `SCHEMA_VERSION` on any incompatible change.
 }
 ```
 
+Audio input adds to `source` (additive, no version bump): `meter` (bpm, time signature, bar
+length …), `decode` (decoder parameters) and `structure` = `{"sections": [{start, end,
+start_bar, end_bar, label, cluster, shift, offset, similarity}], "warnings": []}` where `label` ∈
+intro / verse / pre-chorus / chorus / bridge / inst / outro / other, `cluster` groups repeats,
+`shift` = semitones up vs the group's first occurrence (modulation). Frames then carry the
+section `label` in `section`; text input sets `section` from `[Section]` markers.
+
 Chord labels may be Harte (`Bb:hdim7`, `C:maj/3`) or pop/Japanese (`Bbm7-5`, `C(onE)`), see
 `harmonia/theory/chord.py`. `N` = no chord, `X` = unknown. An unparseable candidate is dropped
 with a warning; a frame with no parseable candidate becomes `X` with confidence 0.

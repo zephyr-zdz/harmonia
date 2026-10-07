@@ -63,6 +63,12 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 0; }
   white-space: nowrap; overflow: hidden; cursor: pointer; opacity: .92; }
 .ev.low { opacity: .5; background-image: repeating-linear-gradient(45deg, transparent 0 6px, rgba(255,255,255,.25) 6px 12px); }
 .ev.sel { outline: 2px solid var(--ink); }
+.sec { position: absolute; top: 6px; height: 20px; font-size: 11px; line-height: 20px; padding: 0 4px; overflow: hidden;
+  white-space: nowrap; border-radius: 3px; box-sizing: border-box; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
+.sec-chorus { background: color-mix(in srgb, var(--accent) 28%, transparent); border-color: var(--accent); }
+.sec-verse { background: color-mix(in srgb, #3a8f5c 22%, transparent); }
+.sec-prechorus { background: color-mix(in srgb, #c08a2e 22%, transparent); }
+.sec-bridge { background: color-mix(in srgb, #8a4fbf 22%, transparent); }
 .prog { position: absolute; top: 18px; height: 18px; font-size: 11px; border: 1px solid var(--accent); color: var(--accent);
   border-radius: 4px; padding: 0 5px; white-space: nowrap; overflow: hidden; }
 #playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--warn); z-index: 4; pointer-events: none; }
@@ -206,6 +212,15 @@ function render() {
     for (let t = 0; t < duration(); t += step) tick(ruler, t * P, an.time_unit === "beat" ? `${t}` : fmt(t).replace(/\.\d$/, ""));
   }
 
+  const secs = sections();
+  if (secs.length) {
+    const sl = lane("sections", 30);
+    for (const x of secs) { const d = el("div", "sec sec-" + x.label.replace(/[^a-z]/g, ""), sl); place(d, x.start, x.end);
+      d.textContent = x.label + (x.cluster ? ` ${x.cluster}` : "") + (x.shift ? ` +${x.shift}` : "");
+      d.title = x.cluster ? `${x.label} · group ${x.cluster}` + (x.shift ? ` · transposed +${x.shift} semitones` : "")
+        + (x.similarity ? ` · repeat similarity ${x.similarity.toFixed(2)}` : "") : x.label; }
+  }
+
   const keys = lane("key", 44);
   an.key_regions.forEach((r, i) => { const d = el("div", "keyblk", keys); place(d, r.start, r.end);
     d.style.background = `var(${i % 2 ? "--key-b" : "--key-a"})`; d.textContent = `${r.key.label} (${r.key.prob.toFixed(2)})`; });
@@ -237,6 +252,19 @@ function render() {
     for (const p of an.progressions) { const d = el("div", "prog", pl); place(d, p.start, p.end); d.textContent = p.name; d.title = `${p.alias}: ${p.numerals.join("–")} in ${p.reference_key}`; }
   }
   renderTables(); renderDetail();
+}
+
+function sections() {  // recogniser structure, else [Section] markers carried on the frames
+  const st = (S.rec.source || {}).structure;
+  if (st && st.sections && st.sections.length) return st.sections;
+  const out = [];
+  for (const f of S.rec.frames) {
+    if (!f.section) continue;
+    const last = out[out.length - 1];
+    if (last && last.label === f.section) last.end = f.time + f.duration;
+    else out.push({ label: f.section, start: f.time, end: f.time + f.duration });
+  }
+  return out;
 }
 
 function lane(name, h, cls) {
