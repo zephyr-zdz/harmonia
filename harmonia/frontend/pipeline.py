@@ -100,7 +100,8 @@ def from_features(ev, grid, source_path: Path, audio_path: Path, cfg: dict) -> R
     structure = None
     if cfg.get("structure", {}).get("enabled") and meter is not None:
         try:
-            structure = analyse_structure(audio_path, edges, bars, meter.beats_per_bar, dec.posteriors, dec.labels, cfg)
+            structure = analyse_structure(audio_path, edges, bars, meter.beats_per_bar, dec.posteriors, dec.labels, cfg,
+                                          source_path=source_path)
             warnings += [f"structure: {w}" for w in structure.warnings]
             dec.posteriors = pool_posteriors(dec.posteriors, structure, cfg)
         except Exception as e:  # structure is optional: report, never fail the transcription

@@ -214,7 +214,8 @@ function render() {
 
   const secs = sections();
   if (secs.length) {
-    const sl = lane("sections", 30);
+    const from = ((S.rec.source || {}).structure || {}).labels_from || "";
+    const sl = lane(from.startsWith("songformer") ? "sections · SongFormer labels, groups by A" : "sections", 30);
     for (const x of secs) { const d = el("div", "sec sec-" + x.label.replace(/[^a-z]/g, ""), sl); place(d, x.start, x.end);
       d.textContent = x.label + (x.cluster ? ` ${x.cluster}` : "") + (x.shift ? ` +${x.shift}` : "");
       d.title = x.cluster ? `${x.label} · group ${x.cluster}` + (x.shift ? ` · transposed +${x.shift} semitones` : "")

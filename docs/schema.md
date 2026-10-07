@@ -32,7 +32,8 @@ Audio input adds to `source` (additive, no version bump): `meter` (bpm, time sig
 length …), `decode` (decoder parameters) and `structure` = `{"sections": [{start, end,
 start_bar, end_bar, label, cluster, shift, offset, similarity}], "warnings": []}` where `label` ∈
 intro / verse / pre-chorus / chorus / bridge / inst / outro / other, `cluster` groups repeats,
-`shift` = semitones up vs the group's first occurrence (modulation). Frames then carry the
+`shift` = semitones up vs the group's first occurrence (modulation); `labels_from` = `"A"` (our
+rules) or `"songformer:<file>"` (SongFormer boundaries + labels, our grouping / shift). Frames then carry the
 section `label` in `section`; text input sets `section` from `[Section]` markers.
 
 Chord labels may be Harte (`Bb:hdim7`, `C:maj/3`) or pop/Japanese (`Bbm7-5`, `C(onE)`), see

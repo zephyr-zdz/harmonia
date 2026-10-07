@@ -31,9 +31,10 @@ class TestStructure(unittest.TestCase):
         plan = [("intro", intro, 0), ("verse", verse, 0), ("pre-chorus", pre, 0), ("chorus", chorus, 0),
                 ("verse", verse, 0), ("pre-chorus", pre, 0), ("chorus", chorus, 0), ("bridge", bridge, 0),
                 ("chorus", chorus, 0), ("chorus", chorus, 2), ("outro", outro, 0)]
-        self.truth = []
+        self.truth, self.plan = [], []
         harm, loud = [], []
         for label, roots, shift in plan:
+            self.plan.append((label, len(self.truth), len(self.truth) + len(roots)))
             harm.append(_bars(roots, shift=shift))
             loud += [(-10.0 if label == "chorus" else -18.0)] * len(roots)
             self.truth += [label] * len(roots)
@@ -60,6 +61,27 @@ class TestStructure(unittest.TestCase):
         st = self.analyse()
         last = [s for s in st.sections if s.label == "chorus"][-1]
         self.assertEqual(last.shift, 2)
+
+    def test_external_labels_with_our_grouping(self):
+        # SongFormer-style input: its boundaries (slightly off the bar lines) and labels are kept,
+        # a leading "silence" is absorbed; repetition groups and the modulation come from us.
+        from harmonia.frontend.structure import analyse
+        ext = [(0.0, 0.5, "silence")]
+        for k, (lab, a, b) in enumerate(self.plan):
+            jitter = 0.4 if k % 2 else -0.4
+            start = 0.5 if k == 0 else ext[-1][1]
+            end = 2.0 * b + (jitter if k < len(self.plan) - 1 else 0.0)
+            ext.append((start, end, lab))
+        st = analyse(self.harm, self.timbre, self.loud, self.bar_times, 2.0 * len(self.loud), self.cfg, external=ext)
+        pred = []
+        for sec in st.sections:
+            pred += [sec.label] * (sec.end_bar - sec.start_bar)
+        self.assertEqual(pred, self.truth)
+        choruses = [sec for sec in st.sections if sec.label == "chorus"]
+        self.assertEqual(len({sec.cluster for sec in choruses}), 1)
+        self.assertEqual([sec.shift for sec in choruses], [0, 0, 0, 2])
+        verse = [sec for sec in st.sections if sec.label == "verse"]
+        self.assertNotEqual(verse[0].cluster, choruses[0].cluster)
 
     def test_too_short_input_is_reported_not_guessed(self):
         from harmonia.frontend.structure import analyse

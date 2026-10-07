@@ -189,3 +189,10 @@ SongFormer's labels follow the expected J-pop form (e.g. 春日影 MyGO ver.: in
 pre-chorus → chorus ×2 → verse → chorus → inst → bridge → inst → chorus ×3), while A leaves many
 stretches as inst / other and mislabels some (春日影: a "chorus" at 23 s). A's boundaries and
 repetition groups (incl. modulation shift) agree reasonably; its LABEL rules are the weak part.
+
+Combined (user decision): SongFormer boundaries + labels, snapped to our bar grid, with option
+A's repetition groups and transposition shift (`[structure].external_dirs`); recognitions
+`outputs/runs/*_v4` (29/29 songs labelled from SongFormer). Example 帰り道: verse B → pre-chorus C
+→ chorus D ×2 … final chorus D, chorus D +3 (the modulation now sits on SongFormer's chorus).
+Where the two disagree the group shows it (春日影 138 s: labelled chorus, but repeats the
+pre-chorus material, group C; 197 s "inst" repeats the chorus's first half, group D).

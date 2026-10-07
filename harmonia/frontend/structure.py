@@ -56,11 +56,13 @@ class Structure:
     sections: list[Section]
     bar_times: list[float]
     warnings: list[str] = field(default_factory=list)
+    labels_from: str = "A"                     # "A" (rules) or "songformer:<file>" (external labels)
     beat_index: list[list[int]] = field(default_factory=list)   # beats of each analysed bar
     bar_similarity: np.ndarray | None = None   # repetition similarity between bars (not serialised)
 
     def to_dict(self) -> dict:
-        return {"sections": [asdict(s) for s in self.sections], "warnings": self.warnings}
+        return {"sections": [asdict(s) for s in self.sections], "warnings": self.warnings,
+                "labels_from": self.labels_from}
 
     def label_at(self, t: float) -> str | None:
         for s in self.sections:
@@ -233,7 +235,10 @@ def _seg_similarity(S: np.ndarray, a: tuple[int, int], b: tuple[int, int], slack
 # ------------------------------------------------------------------------------ main
 
 def analyse(harm: np.ndarray, timbre: np.ndarray, loud: np.ndarray, bar_times: list[float], end_time: float,
-            cfg: dict) -> Structure:
+            cfg: dict, external: list[tuple[float, float, str]] | None = None) -> Structure:
+    """``external``: sections from another labeller (SongFormer). Their boundaries (snapped to
+    bar lines) and labels are used as is; repetition groups and transposition shifts are still
+    computed here (SongFormer gives labels but no grouping or modulation)."""
     sc = cfg["structure"]
     n = harm.shape[0]
     warnings: list[str] = []
@@ -246,7 +251,11 @@ def analyse(harm: np.ndarray, timbre: np.ndarray, loud: np.ndarray, bar_times: l
     S_tim = np.exp(-(D ** 2) / (2 * sigma ** 2))
     S = sc["repetition_weight"] * S_rep + (1 - sc["repetition_weight"]) * S_tim
     nov = novelty(S, sc["kernel_bars"])
-    cuts = segment_bars(nov, sc)
+    ext_labels: list[str] | None = None
+    if external:
+        cuts, ext_labels = snap_external(external, bar_times, n)
+    else:
+        cuts = segment_bars(nov, sc)
     segs = list(zip(cuts[:-1], cuts[1:]))
 
     # clusters (average linkage over segment similarity)
@@ -284,7 +293,7 @@ def analyse(harm: np.ndarray, timbre: np.ndarray, loud: np.ndarray, bar_times: l
     for i, c in enumerate(cluster):
         members.setdefault(c, []).append(i)
 
-    labels = _label(segs, cluster, members, loud, sc)
+    labels = ext_labels if ext_labels is not None else _label(segs, cluster, members, loud, sc)
     sections: list[Section] = []
     for i, (a, b) in enumerate(segs):
         mates = [j for j in members[cluster[i]] if j != i]
@@ -299,6 +308,33 @@ def analyse(harm: np.ndarray, timbre: np.ndarray, loud: np.ndarray, bar_times: l
     if not any(s.label == "chorus" for s in sections):
         warnings.append("no repeated section found: chorus not identified")
     return Structure(sections, bar_times, warnings, bar_similarity=S_rep)
+
+
+_EXTERNAL_LABELS = {"prechorus": "pre-chorus", "pre-chorus": "pre-chorus", "intro": "intro", "verse": "verse",
+                    "chorus": "chorus", "bridge": "bridge", "inst": "inst", "outro": "outro"}
+
+
+def snap_external(external: list[tuple[float, float, str]], bar_times: list[float], n: int
+                  ) -> tuple[list[int], list[str]]:
+    """External sections → bar cut points + labels. Boundaries move to the nearest bar line;
+    "silence" and sections that collapse to zero bars are absorbed by their neighbours; labels
+    outside our set become "other"."""
+    secs = [(s, e, _EXTERNAL_LABELS.get(l, "other")) for s, e, l in external if l != "silence" and e > s]
+    if not secs:
+        return [0, n], ["other"]
+    bt = np.asarray(bar_times)
+    cuts, labs = [0], []
+    for k, (s, e, lab) in enumerate(secs):
+        if k == 0:
+            labs.append(lab)
+            continue
+        c = int(np.argmin(np.abs(bt - s)))
+        if c <= cuts[-1] or c >= n:   # collapsed onto the previous cut: keep the earlier label
+            continue
+        cuts.append(c)
+        labs.append(lab)
+    cuts.append(n)
+    return cuts, labs
 
 
 def _label(segs, cluster, members, loud, sc) -> list[str]:
@@ -362,12 +398,32 @@ def _label(segs, cluster, members, loud, sc) -> list[str]:
     return lab
 
 
-def from_recognition_inputs(audio_path, edges, bars, beats_per_bar, posteriors, labels, cfg) -> Structure:
+def external_sections(audio_path: str | Path, cfg: dict) -> tuple[list[tuple[float, float, str]] | None, str]:
+    """Look for ``<audio stem>.songformer.json`` in [structure].external_dirs (relative to the repo)."""
+    root = Path(__file__).resolve().parents[2]
+    stem = Path(audio_path).stem
+    for d in cfg["structure"].get("external_dirs", []):
+        f = (root / d if not Path(d).is_absolute() else Path(d)) / f"{stem}.songformer.json"
+        if f.is_file():
+            import json
+            secs = json.loads(f.read_text(encoding="utf-8"))["sections"]
+            return [(float(x["start"]), float(x["end"]), str(x["label"])) for x in secs], str(f)
+    return None, ""
+
+
+def from_recognition_inputs(audio_path, edges, bars, beats_per_bar, posteriors, labels, cfg,
+                            source_path: str | Path | None = None) -> Structure:
     m = beats_per_bar or 4
     feats = beat_features(audio_path, edges, posteriors, labels)
     order, beat_idx, harm, timbre, loud = bar_matrix(feats, bars, m, cfg["structure"]["identity_weight"])
     bar_times = [float(edges[bi[0]]) for bi in beat_idx]
-    st = analyse(harm, timbre, loud, bar_times, float(edges[-1]), cfg)
+    external, ext_file = external_sections(source_path or audio_path, cfg)
+    st = analyse(harm, timbre, loud, bar_times, float(edges[-1]), cfg, external)
+    if external:
+        try:
+            st.labels_from = "songformer:" + str(Path(ext_file).relative_to(Path(__file__).resolve().parents[2]))
+        except ValueError:
+            st.labels_from = "songformer:" + ext_file
     st.beat_index = beat_idx
     return st
 

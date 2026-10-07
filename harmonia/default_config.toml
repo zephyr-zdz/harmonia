@@ -327,6 +327,10 @@ library = ["data/external/user_music"]   # default song library for `harmonia ui
 # [UNCERTAIN] until scored on annotated sections (none yet).
 [structure]
 enabled = true
+# Section LABELS from SongFormer when its output exists (<audio stem>.songformer.json, see
+# tools/songformer_gpu); boundaries snapped to bars, repetition groups + modulation shift from
+# option A. User decision 2026-10-07. Missing file → option A labels.
+external_dirs = ["outputs/songformer/runs/gpu_v1"]
 embed_bars = 2              # repetition compares 2-bar windows (harmony + harmonic rhythm)
 identity_weight = 1.0       # repetition feature: chord identity (root × maj/min posteriors) vs chroma.
                             # Chroma alone over-merged sections (same-key bars all look alike)

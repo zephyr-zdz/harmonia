@@ -196,6 +196,9 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
   B (all-in-one) / C (SongFormer) feasibility in docs/structure_options.md, nothing installed.
   Chord pooling across repeats measured useless on dev → off. Labels unscored until the user's
   score transcriptions carry `[Verse]` / `[Chorus]` markers.
+- **2026-10-07 (user)**: SongFormer (C) ran on bw2-01 via the `gsched` skill (29 songs, 2 min); its
+  labels follow J-pop form much better than A's rules → combined: SongFormer boundaries + labels
+  (`[structure].external_dirs`), A's repetition groups + transposition shift. A alone is the fallback.
 - ChoCo v1.0.0 (Zenodo 7706751, md5 c26f2380…): annotations only; used for symbolic
   validation of the key model and for transition-prior statistics.
 
