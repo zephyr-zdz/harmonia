@@ -83,3 +83,30 @@ GPU machine. Nothing installed or downloaded for B / C yet.
 - SongFormer: https://github.com/aslp-lab/songformer · https://huggingface.co/ASLP-lab/SongFormer · https://arxiv.org/abs/2510.02797
 - MuQ weights: https://huggingface.co/OpenMuQ/MuQ-large-msd-iter
 - SongFormBench: https://huggingface.co/datasets/ASLP-lab/SongFormBench
+
+## C — trial on this Mac (2026-10-07, user: "试试 C")
+
+Setup (all under gitignored `outputs/songformer/`): code + weights from HuggingFace
+ASLP-lab/SongFormer @ a75880ed (code reviewed before running: no network / exec calls; weights
+are safetensors), 2.76 GB `model.safetensors`, plus the 2 KB config of
+facebook/wav2vec2-conformer-rope-large-960h-ft. Isolated venv: uv-managed CPython 3.11
+(Homebrew's framework Python ran throttled; Python 3.10 + scipy 1.15 wheels fail to load on this
+macOS), torch 2.4.0, transformers 4.51.1, muq 0.1.0, msaf 0.1.80, scipy 1.17.1, numpy 1.26.4,
+setuptools < 80 (msaf needs pkg_resources). Runner: `tools/songformer_infer.py`.
+
+CPU adaptations, each verified:
+1. MusicFM attention: transformers' plain conformer materialises T×T matrices (T ≈ 10.5 k for
+   the 420 s window). Swapped for MusicFM's own fused-attention twin with the same weights
+   (2-layer check: hidden states equal to 1e-6; weight-norm key names mapped, strict load).
+2. Forced CUDA flash kernel → PyTorch's own kernel choice; `transformers.deepspeed` shim.
+3. Attention dropout (p = 0.1) was applied even in eval by upstream → set to 0 (deterministic).
+4. `--low-mem` loading: peak memory 6.87 → 5.79 GB on a 60 s clip, sections identical.
+
+Results: 60 s clip 27 s, 120 s clip 53 s (CPU). A full 6-min song exhausted RAM + swap (the
+Mac already had 8–10 GB swapped by other apps) and was stopped by a watchdog; bf16 autocast was
+> 5× slower on this CPU and abandoned. → **C works technically, but full songs need roughly
+≥ 10 GB of free RAM**, which this 17 GB Mac does not have with the usual apps open.
+Ways forward: (a) the user's Linux / RTX 6000 machine (SongFormer's native platform, 2–4 s per
+song); (b) close memory-heavy apps here and retry (≈ 1.5–3 min per song); (c) run in ≤ 120 s
+chunks — fits easily but departs from the model's 420 s context (quality unknown, would need
+checking against full-context output from (a) or (b)).
