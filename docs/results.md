@@ -90,3 +90,43 @@ Findings:
   oracle C major, system correct; m06 B major → G♯ minor). Dev had none. This is the
   relative-key ambiguity of decision Q2 (mild major prior). Not tuned on test — needs a
   theory-level answer from the user / more dev material.
+
+## 2026-10-07 — minor leading-tone bonus (user request): NOT adopted
+
+`key.minor_leading_tone_bonus` = extra minor-key evidence per V / V7 / vii°(7). Dev only:
+
+| bonus | rock tonic | iso key | robbie key | IdolSongsJp dev local key: oracle | system |
+|---|---|---|---|---|---|
+| **0.0** | 0.770 | 0.758 | 0.850 | 0.950 | 0.932 |
+| 0.3 | 0.775 | 0.752 | 0.847 | 0.950 | 0.929 |
+| 0.6 | 0.775 | 0.744 | 0.845 | 0.950 | 0.898 |
+| 1.0 | 0.774 | 0.702 | 0.839 | 0.950 | 0.894 |
+| 1.5 | 0.738 | 0.672 | 0.804 | 0.873 | 0.892 |
+
+Monotone loss: the leading-tone chord is just as often III(7) = V/vi of the relative major
+(J-pop III7→vim), which the emission table already scores (+1.5 for minor). Kept at 0 (off).
+
+## 2026-10-07 — decoder calibration on IdolSongsJp dev (user request)
+
+`python -m harmonia.frontend.calibrate --out outputs/calibration/decode_v1` — 192-point grid
+(obs_weight 0.5–2, change_penalty 1–4, change_extra_offbeat 0.5–3, new `seventh_bias` 0–2) on
+the 8 dev songs, network features cached, objective fixed in advance: mean(majmin, sevenths)
+with local key ≥ default − 0.01. Best on the grid: obs 1.5, change 1.0, offbeat 0.5, 7th bias 1.0.
+Two values were on the grid edge; a refinement beyond them (`decode_v1_edge`, change 0.25–1,
+offbeat 0–0.5, bias 0.75–1.25) gained ≤ 0.003 — flat plateau, noise for 8 songs — so the main
+grid point was kept. seventh_bias 2.0 over-predicts 7ths (sevenths 0.44 at obs 0.5).
+
+Recognitions re-run with the new defaults: `outputs/runs/idolsongsjp_v2`.
+
+| split | run | root | majmin | sevenths | seg | CER majmin | numeral strict / degree | local key system | events F1 vs oracle |
+|---|---|---|---|---|---|---|---|---|---|
+| dev | v1 (old defaults) | 0.807 | 0.812 | 0.623 | 0.819 | 0.299 | 0.540 / 0.794 | 0.932 | 0.555 |
+| dev | **v2 (calibrated)** | 0.818 | 0.826 | 0.664 | 0.847 | 0.273 | 0.578 / 0.819 | 0.952 | 0.603 |
+| test | v1 | 0.788 | 0.771 | 0.594 | 0.776 | 0.336 | 0.446 / 0.632 | 0.697 | 0.499 |
+| test | **v2** | 0.799 | 0.784 | 0.635 | 0.802 | 0.303 | 0.440 / 0.603 | 0.823 | 0.534 |
+
+Test, looked at once: every chord metric improves, consistent with dev. The test local-key jump
+(0.697 → 0.823) is ONE song (m06: 0.30 → 1.00, while its global key still reads G♯ minor) —
+luck, not a calibrated effect. Test numeral agreement drops slightly because it is measured
+against the oracle, whose keys are wrong on m01 / m05 / m06 (relative major/minor; open issue).
+Noticed (not tuned): m06's global key (posterior mass) disagrees with its Viterbi local keys.

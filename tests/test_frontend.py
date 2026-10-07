@@ -69,6 +69,17 @@ class TestDecode(unittest.TestCase):
         second = np.sort(p)[-2]
         self.assertGreaterEqual(second, load_config()["frontend"]["min_candidate_prob"])
 
+    def test_seventh_bias_only_lifts_seventh_chords(self):
+        from harmonia.config import load_config
+        from harmonia.frontend.decode import beat_observations
+        ev, edges = self._evidence(["G:maj"] * 2)
+        dc = dict(load_config()["frontend"]["decode"], seventh_bias=0.0)
+        o0, _ = beat_observations(ev, edges, dc)
+        o1, _ = beat_observations(ev, edges, dict(dc, seventh_bias=1.0))
+        diff = (o1 - o0)[0]
+        self.assertEqual([ev.labels[i] for i in np.flatnonzero(diff)], ["G:7"])
+        self.assertAlmostEqual(float(diff.max()), 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()

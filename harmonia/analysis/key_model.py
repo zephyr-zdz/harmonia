@@ -53,6 +53,14 @@ MINOR_FIT: dict[int, dict[str, float]] = {
 }
 
 
+def _MAJOR_THIRD(ch: Chord) -> float:
+    return 1.0 if ch.qclass in ("maj", "dom") else 0.0
+
+
+def _DIMINISHED(ch: Chord) -> float:
+    return 1.0 if ch.qclass in ("dim",) else 0.0
+
+
 def chord_key_score(chord: Chord, key: Key, cfg: dict) -> float:
     if chord.root is None:
         return 0.0
@@ -115,6 +123,13 @@ def emission_matrix(segs: list[SegData], cfg: dict,
                 e = _lse(terms)
                 if not key.is_major:
                     e += kc["minor_bias"]
+                    # Leading-tone evidence (user 2026-10-07): the raised 7th exists in minor only
+                    # through V / V7 / vii°(7). The same chord is III(7) = V/vi in the relative
+                    # major, so this is a soft bonus, not proof.
+                    lt = kc["minor_leading_tone_bonus"]
+                    if lt:
+                        e += lt * (seg.dist.mass((key.tonic + 7) % 12, _MAJOR_THIRD)
+                                   + seg.dist.mass((key.tonic + 11) % 12, _DIMINISHED))
                 row[ki] = w * e
                 # cadence: V7 (full weight) or V triad (cadence_triad_factor) immediately followed
                 # by the tonic triad. A bare triad V→I is weaker evidence because it is also

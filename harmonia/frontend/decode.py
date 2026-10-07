@@ -79,7 +79,27 @@ def beat_observations(ev: FrameEvidence, edges: np.ndarray, dc: dict) -> tuple[n
         obs[b] = dc["obs_weight"] * ll.mean(axis=0)
         if bass is not None:
             bass[b] = ev.bass[lo:hi].mean(axis=0)
+    bias = dc.get("seventh_bias", 0.0)
+    if bias:
+        obs += bias * _seventh_mask(tuple(ev.labels))[None, :]
     return obs, bass
+
+
+_MASKS: dict[tuple[str, ...], np.ndarray] = {}
+
+
+def _seventh_mask(labels: tuple[str, ...]) -> np.ndarray:
+    """1.0 for vocabulary chords with a 7th. ``seventh_bias`` is a class-prior correction:
+    the chord model under-predicts 7ths relative to J-pop practice (maj7(9) -> maj)."""
+    if labels not in _MASKS:
+        m = np.zeros(len(labels))
+        for i, l in enumerate(labels):
+            try:
+                m[i] = 1.0 if parse_chord(l).has_seventh else 0.0
+            except ChordParseError:
+                pass
+        _MASKS[labels] = m
+    return _MASKS[labels]
 
 
 def metrical_extra(positions: list[int | None] | None, beats_per_bar: int | None, dc: dict, B: int) -> np.ndarray:

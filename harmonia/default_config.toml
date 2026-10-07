@@ -20,6 +20,8 @@ default_seconds_per_beat = 0.5   # used only to weight inputs with no beat info 
 switch_penalty = 6.0             # log-cost of changing key between two chords
 minor_bias = -0.1                # per-weight-unit prior against minor (pop corpora are mostly major;
                                  # Japanese analysis labels relative-ambiguous loops in major)  [ASK]
+minor_leading_tone_bonus = 0.0   # minor keys: extra evidence per V / V7 / vii°(7) (raised 7th). User 2026-10-07;
+                                 # value chosen on dev (docs/results.md)
 cadence_bonus = 1.0              # V7 -> I (or V7 -> i) supports that key
 cadence_triad_factor = 0.3       # plain V triad -> I gets this fraction (it is also I -> IV of the key a 5th
                                  # below). 1.0 -> 0.3 chosen on ChoCo dev 2026-10-06 (see CLAUDE.md)
@@ -289,12 +291,13 @@ backend = "lv_chordia"
 vocabulary = "submission"                 # submission (301 chords) | ismir2017 | full
 
 [frontend.decode]
-obs_weight = 1.0          # temperature on beat-mean frame log-likelihood (calibrate on dev only)
-change_penalty = 2.0      # log-cost of a chord change between beats (on top of the prior)
+obs_weight = 1.5          # temperature on beat-mean frame log-likelihood. 1.0 -> 1.5 calibrated on IdolSongsJp dev 2026-10-07
+change_penalty = 1.0      # log-cost of a chord change between beats (on top of the prior). 2.0 -> 1.0 (dev)
 no_chord_change = -1.0    # extra cost for changes into / out of N
 change_extra_halfbar = 0.5   # extra cost of a change on the half-bar beat (bar line: 0)
-change_extra_offbeat = 1.5   # extra cost of a change on any other beat
+change_extra_offbeat = 0.5   # extra cost of a change on any other beat. 1.5 -> 0.5 (dev)
 transition_prior = ""     # optional JSON from harmonia.frontend.transition_prior (ChoCo stats)
+seventh_bias = 1.0        # log-bonus for vocabulary chords with a 7th (class-prior correction). 0 -> 1.0 (dev)
 
 [ui]
 library = ["data/external/user_music"]   # default song library for `harmonia ui` (dirs or files, relative to repo)

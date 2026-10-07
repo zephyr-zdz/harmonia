@@ -59,14 +59,22 @@ def readable_audio(path: Path) -> Path:
 
 def transcribe(audio_path: str | Path, cfg: dict | None = None) -> RecognitionResult:
     cfg = cfg or load_config()
+    return from_features(*extract_features(audio_path, cfg), cfg)
+
+
+def extract_features(audio_path: str | Path, cfg: dict) -> tuple:
+    """The slow, network part (beats + frame chord evidence). Its output does not depend on
+    [frontend.decode], so calibration caches it and re-runs only ``from_features``."""
     source_path = Path(audio_path).resolve()  # lv-chordia resolves relative paths against its package dir
     audio_path = readable_audio(source_path)
+    return frame_evidence(audio_path, cfg), track_beats(audio_path, cfg), source_path, audio_path
+
+
+def from_features(ev, grid, source_path: Path, audio_path: Path, cfg: dict) -> RecognitionResult:
+    """Meter grid + beat-synchronous decoding + top-k candidates (fast)."""
     fc = cfg["frontend"]
     dc = fc["decode"]
     warnings: list[str] = []
-
-    ev = frame_evidence(audio_path, cfg)
-    grid = track_beats(audio_path, cfg)
     warnings += grid.warnings
     meter = None
     if len(grid.beats) >= 8:

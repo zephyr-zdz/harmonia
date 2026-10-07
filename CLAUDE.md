@@ -11,7 +11,7 @@ Target styles: J-pop / City Pop / pop. Jazz reharmonisation accuracy is a non-go
 |---|---|---|
 | 1 | Symbolic analysis layer (chord symbols → keys / numerals / events) | done (accepted 2026-10-06) |
 | 2 | Evaluation framework (mir_eval chord metrics, event P/R, error attribution) | framework done; IdolSongsJp (15 songs, 8 dev / 7 test) evaluated; MyGO refs pending (user transcribing official scores) |
-| 3 | Audio front end | option A running end-to-end (docs/phase3_options.md); calibration pending dev data |
+| 3 | Audio front end | option A running end-to-end (docs/phase3_options.md); decoder calibrated on IdolSongsJp dev (`harmonia.frontend.calibrate`) |
 | 4 | UI (timeline, playback, manual chord edits → re-analysis) | running (song library + switching); awaiting user feedback |
 | 5 | Optional LLM narration of events | not started |
 
@@ -24,6 +24,7 @@ uv sync --extra eval                                 # .venv with mir_eval (Phas
 .venv/bin/python -m unittest discover -s tests -t .  # full suite (eval tests skip without mir_eval)
 .venv/bin/python -m harmonia eval --split dev --estimates outputs/<run>   # real system output
 .venv/bin/python -m harmonia.eval.idolsongsjp                          # (re)build data/eval from IdolSongsJp
+.venv/bin/python -m harmonia.frontend.calibrate --out outputs/calibration/<name>   # decoder grid on dev
 .venv/bin/python -m harmonia eval --split dev --simulate --seed 0         # simulated recogniser
 .venv/bin/python -m harmonia eval --split dev --sweep                     # robustness curve
 uv sync --extra eval --extra audio                                       # + torch, lv-chordia, beat-this, demucs
@@ -73,6 +74,7 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
   `chords.py` (lv-chordia ensemble; we tap its decomposition heads + observation function,
   not its final labels), `decode.py` (beat-synchronous HMM with root-motion transition prior,
   forward–backward → per-beat top-k; chord changes cost extra off the bar line / half bar),
+  `calibrate.py` (dev-only grid over [frontend.decode] with cached network features),
   `meter.py` (user suggestion: BPM first, then bar lines — mode-seeded beat & bar periods,
   meter m = bar/beat, BPM = 60·m/bar, regularised bar grid with filled / dropped / genuinely
   irregular bars), `pipeline.py` (`transcribe()` → RecognitionResult; m4a etc. decoded once
@@ -176,6 +178,11 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
   time-varying keys, meta.toml with provenance + license). Split by choco.split_of: 8 dev / 7 test.
   NOTE: `hf download --include a b c --exclude …` ignored --exclude and fetched every variant
   (7 GB); use hf_hub_download per file.
+- **2026-10-07 (user)**: V7 leading tone as minor-key evidence → implemented
+  (`key.minor_leading_tone_bonus`) but every dev set got worse (III7→vim of the relative major is
+  the same chord pair) → kept at 0. Decoder calibrated on dev: obs_weight 1.5, change_penalty 1.0,
+  change_extra_offbeat 0.5, new seventh_bias 1.0 (dev majmin .812→.826, sevenths .623→.664).
+  Open: relative major/minor confusions on test (m01, m05, m06).
 - ChoCo v1.0.0 (Zenodo 7706751, md5 c26f2380…): annotations only; used for symbolic
   validation of the key model and for transition-prior statistics.
 
