@@ -130,3 +130,20 @@ Test, looked at once: every chord metric improves, consistent with dev. The test
 luck, not a calibrated effect. Test numeral agreement drops slightly because it is measured
 against the oracle, whose keys are wrong on m01 / m05 / m06 (relative major/minor; open issue).
 Noticed (not tuned): m06's global key (posterior mass) disagrees with its Viterbi local keys.
+
+## 2026-10-07 — カノン進行 detection (user request)
+
+Before: 0 matches in all 29 songs. The strict 8-chord Pachelbel form is rare; real J-pop uses
+(a) the core I–V–vi–iii–IV with varied second halves (壱雫空: I V vi iii IV iii II V) and
+(b) the descending bass 1–7–6–5–(4|♯4) with reharmonised chords (帰り道: I7 V/7 vim7 I/5 II/♯4).
+Changes: idiom positions may list alternative degrees and bass constraints; `min_length` core;
+bass evidence = 0.5·chord-candidate bass + 0.5·bass head (dev per-beat bass accuracy: head 0.888,
+candidates 0.860; on inversions 0.715 / 0.648); idiom confidence = geometric mean of per-position
+factors with a 0.3 floor (the product made every 5–8-chord idiom fail on real audio).
+
+Matches (dev references + dev / MyGO recognitions): カノン 0 → 3 ref / 9 rec (帰り道 ref 3×,
+rec 2×; 壱雫空 5×; 詩超絆; 迷星叫); axis I–V–vi–IV stays unmatched. Side effect of the
+geometric mean on recognitions: 王道 79 → 85, 小室 45 → 48 (references unchanged).
+Key scores unchanged (rock tonic .770, iso .758, robbie .850, IdolSongsJp dev local .950 / .952).
+Known miss: 栞 (recogniser and bass head hear root-position I where the canon needs bass 5).
+No gold idiom labels exist yet, so this is inspection, not a P/R number.

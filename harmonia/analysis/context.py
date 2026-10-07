@@ -78,6 +78,24 @@ class AnalysisContext:
     def root_prob(self, run: Run, pc: int) -> float:
         return max(self.segs[s].dist.root_prob(pc % 12) for s in run.segs)
 
+    def bass_prob(self, run: Run, pcs: set[int]) -> float:
+        """P(bass ∈ pcs), max over the run's segments. Mixes the chord candidates' bass (slash
+        bass, else root) with the recogniser's separate bass head when present
+        ([general].bass_head_weight; on IdolSongsJp dev the head is the more accurate source,
+        0.89 vs 0.86 per beat)."""
+        w = self.cfg["general"]["bass_head_weight"]
+        best = 0.0
+        for i in run.segs:
+            seg = self.segs[i]
+            pcs12 = {p % 12 for p in pcs}
+            cand = sum(c.prob for c in seg.dist.cands if c.chord.bass_pc is not None and c.chord.bass_pc in pcs12)
+            tot = sum(c.prob for c in seg.dist.cands if c.chord.bass_pc is not None) or 1.0
+            p = cand / tot
+            if seg.bass_head:
+                p = (1 - w) * p + w * sum(v for pc, v in seg.bass_head.items() if pc in pcs12)
+            best = max(best, p)
+        return best
+
     def roots(self, run: Run) -> list[int]:
         out: list[int] = []
         for s in run.segs:

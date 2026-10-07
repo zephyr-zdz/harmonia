@@ -13,6 +13,8 @@ chose the reference explicitly (see CLAUDE.md, decisions log).
 
 from __future__ import annotations
 
+import math
+
 from dataclasses import dataclass
 
 from ..theory.key import Key
@@ -33,45 +35,91 @@ class IdiomMatch:
     degrees: tuple[int, ...] = ()   # idiom degrees relative to ref_key
 
 
+def _opts(x) -> list[int]:
+    return list(x) if isinstance(x, (list, tuple)) else [x]
+
+
 def match_idioms(ctx: AnalysisContext) -> list[IdiomMatch]:
+    """Match every configured idiom in all transpositions.
+
+    Per position (see default_config.toml [[named_progressions.idiom]]):
+      degrees[i]   root degree in the reference major key, or a list of alternatives;
+      qclasses[i]  allowed quality classes (soft quality factor), or "any";
+      bass[i]      optional: bass degree(s) that must sound (soft: P(bass) is a factor), or -1 = free.
+    Confidence = geometric mean of the per-position factors (each ≥ [named_progressions]
+    min_position_factor, so one clearly missing chord still breaks the match).
+    ``min_length``: the first n positions are the idiom's distinctive core; a match may stop
+    after them (the rest is reported when present). Overlapping matches of the same name keep
+    the longest / most confident one.
+    """
     cfg = ctx.cfg["named_progressions"]
     q = ctx.cfg["quality"]
     out: list[IdiomMatch] = []
     for idiom in cfg.get("idiom", []):
-        degrees = idiom["degrees"]
-        allowed = [set(a) for a in idiom["qclasses"]]
+        degrees = [_opts(d) for d in idiom["degrees"]]
+        n = len(degrees)
+        quals = idiom.get("qclasses", "any")
+        allowed = [None] * n if quals == "any" else [None if a == "any" else set(a) for a in quals]
+        bass = [None if b == -1 else _opts(b) for b in idiom.get("bass", [-1] * n)]
+        if not (len(allowed) == len(bass) == n):
+            raise ValueError(f"idiom {idiom['name']!r}: degrees / qclasses / bass lengths differ")
+        min_len = int(idiom.get("min_length", n))
+        floor = cfg["min_position_factor"]
         for start, run0 in enumerate(ctx.runs):
             if run0.root is None:
                 continue
-            tonic = (run0.root - degrees[0]) % 12
-            runs = [start]
-            while len(runs) < len(degrees):
-                nxt = ctx.next_run(runs[-1])
-                if nxt is None:
-                    break
-                runs.append(nxt)
-            if len(runs) < len(degrees):
-                continue
-            conf = 1.0
-            reps: list[int] = []
-            for ri, deg, ok in zip(runs, degrees, allowed):
-                run = ctx.runs[ri]
-                pc = (tonic + deg) % 12
-                conf *= ctx.root_prob(run, pc)
-                val, seg = ctx.best_mass(run, pc, lambda ch, ok=ok: 1.0 if ch.qclass in ok else 0.0)
-                m = ctx.cond(seg, pc, lambda ch, ok=ok: 1.0 if ch.qclass in ok else 0.0)
-                c = ctx.cond(seg, pc, lambda ch, ok=ok: 1.0 if ch.qclass in _DEFINITE - ok else 0.0)
-                conf *= max(q["base"] + (1 - q["base"]) * m - q["contradict_penalty"] * c, 0.0)
-                reps.append(seg)
+            for first in degrees[0]:
+                tonic = (run0.root - first) % 12
+                factors, reps, runs, used = [], [], [], []
+                ri: int | None = start
+                for i in range(n):
+                    if ri is None:
+                        break
+                    run = ctx.runs[ri]
+                    opts = [first] if i == 0 else degrees[i]
+                    deg = max(opts, key=lambda d: ctx.root_prob(run, tonic + d))
+                    pc = (tonic + deg) % 12
+                    p_root = min(1.0, sum(ctx.root_prob(run, tonic + d) for d in opts))
+                    if bass[i] is None:
+                        f = p_root
+                    else:  # bass-defined position: the bass is the evidence, the root a bonus
+                        f = ctx.bass_prob(run, {tonic + b for b in bass[i]}) * (q["base"] + (1 - q["base"]) * p_root)
+                    ok = allowed[i]
+                    if ok is None:
+                        seg = ctx.best_mass(run, pc, lambda ch: 1.0)[1]
+                    else:
+                        seg = ctx.best_mass(run, pc, lambda ch, ok=ok: 1.0 if ch.qclass in ok else 0.0)[1]
+                        m = ctx.cond(seg, pc, lambda ch, ok=ok: 1.0 if ch.qclass in ok else 0.0)
+                        c = ctx.cond(seg, pc, lambda ch, ok=ok: 1.0 if ch.qclass in _DEFINITE - ok else 0.0)
+                        f *= max(q["base"] + (1 - q["base"]) * m - q["contradict_penalty"] * c, 0.0)
+                    if f < floor:
+                        break
+                    factors.append(f)
+                    reps.append(seg)
+                    runs.append(ri)
+                    used.append(deg)
+                    ri = ctx.next_run(ri)
+                if len(reps) < min_len:
+                    continue
+                # geometric mean: "how well does each chord fit", independent of idiom length
+                conf = math.exp(sum(math.log(f) for f in factors) / len(factors))
                 if conf < ctx.min_conf:
-                    break
-            if conf < ctx.min_conf:
-                continue
-            all_segs = [s for ri in runs for s in ctx.runs[ri].segs]
-            out.append(IdiomMatch(idiom["name"], idiom.get("alias", ""), Key(tonic, "major"), reps,
-                                  all_segs, round(conf, 4), bool(idiom.get("use_key_prior", False)),
-                                  tuple(degrees)))
-    return out
+                    continue
+                all_segs = [s for r in runs for s in ctx.runs[r].segs]
+                out.append(IdiomMatch(idiom["name"], idiom.get("alias", ""), Key(tonic, "major"), reps,
+                                      all_segs, round(conf, 4), bool(idiom.get("use_key_prior", False)),
+                                      tuple(used)))
+    return _dedupe(out)
+
+
+def _dedupe(matches: list[IdiomMatch]) -> list[IdiomMatch]:
+    """Same-name matches over overlapping chords: keep the longest, then most confident."""
+    kept: list[IdiomMatch] = []
+    for m in sorted(matches, key=lambda m: (-len(m.seg_indices), -m.confidence, m.seg_indices[0])):
+        if any(k.name == m.name and set(k.seg_indices) & set(m.seg_indices) for k in kept):
+            continue
+        kept.append(m)
+    return sorted(kept, key=lambda m: (m.seg_indices[0], m.name))
 
 
 def loop_segments(ctx: AnalysisContext, matches: list[IdiomMatch], min_root_prob: float = 0.5) -> frozenset[int]:

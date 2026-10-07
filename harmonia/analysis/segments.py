@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from ..schema import RecognitionResult
 from ..theory.chord import UNKNOWN_CHORD, Chord, ChordParseError, parse_chord
 from ..theory.key import Key
+from ..theory.pitch import parse_note_prefix
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,7 @@ class SegData:
     dist: ChordDist
     frame_range: tuple[int, int]
     bass: str | None = None
+    bass_head: dict[int, float] = field(default_factory=dict)   # P(bass pc) from the recogniser's bass head
     section: str | None = None
     bar: int | None = None
     warnings: list[str] = field(default_factory=list)
@@ -155,8 +157,20 @@ def build_segments(rec: RecognitionResult, cfg: dict) -> tuple[list[SegData], li
             dist=ChordDist(merged),
             frame_range=(group[0], group[-1] + 1),
             bass=max(bass_votes, key=bass_votes.get) if bass_votes else None,
+            bass_head=_bass_head(bass_votes, total_beats),
             section=first.section,
             bar=first.bar,
             warnings=seg_warn,
         ))
     return segs, warnings
+
+
+def _bass_head(votes: dict[str, float], total_beats: float) -> dict[int, float]:
+    """note -> prob·beats votes → {pitch class: share of the segment} (sums to ≤ 1)."""
+    out: dict[int, float] = {}
+    if total_beats <= 0:
+        return out
+    for note, v in votes.items():
+        pc = parse_note_prefix(note)[0]
+        out[pc] = out.get(pc, 0.0) + v / total_beats
+    return out

@@ -183,6 +183,10 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
   the same chord pair) → kept at 0. Decoder calibrated on dev: obs_weight 1.5, change_penalty 1.0,
   change_extra_offbeat 0.5, new seventh_bias 1.0 (dev majmin .812→.826, sevenths .623→.664).
   Open: relative major/minor confusions on test (m01, m05, m06).
+- **2026-10-07 (user)**: recognise カノン進行 → two entries (Pachelbel core I–V–vi–iii–IV with
+  J-pop second halves; descending bass 1–7–6–5–(4|♯4)); idiom matcher gained alternatives, bass
+  constraints, `min_length`, geometric-mean confidence. [UNCERTAIN] whether the ♯4-bass variant
+  (II/♯4, ♯ivø7) is still called カノン進行.
 - ChoCo v1.0.0 (Zenodo 7706751, md5 c26f2380…): annotations only; used for symbolic
   validation of the key model and for transition-prior statistics.
 

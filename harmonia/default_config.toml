@@ -13,6 +13,7 @@ min_root_prob = 0.05             # root hypotheses with less probability mass ar
 key_confidence_exponent = 0.5    # key-dependent events are multiplied by key_prob ** this
 passing_beats = 0.5              # chord runs shorter than this are skipped as passing / noise
 skip_no_chord_beats = 1.0        # "N" runs shorter than this do not block resolution lookups
+bass_head_weight = 0.5           # bass evidence = mix of chord candidates' bass and the recogniser's bass head
 default_seconds_per_beat = 0.5   # used only to weight inputs with no beat info (assumes 120 BPM)
 
 [key]
@@ -231,6 +232,8 @@ note = "Neapolitan bII."
 # AnalysisResult.progressions (they are labels, not chromatic "events").
 enabled = true
 key_prior = 1.5     # HMM log-bonus per matched segment for the reference key (use_key_prior only)
+min_position_factor = 0.3   # every chord of a match needs at least this much evidence (2026-10-07);
+                            # match confidence = geometric mean over positions
 
 [[named_progressions.idiom]]
 name = "丸サ進行"
@@ -259,13 +262,30 @@ qclasses = [["min"], ["maj"], ["maj", "dom"], ["maj"]]
 use_key_prior = false
 note = "vi–IV–V–I."
 
+# カノン進行 (user 2026-10-07: was never found in real songs — the strict 8-chord form is rare).
+# Two entries, same name (overlaps are merged, the longer / more confident match is kept):
 [[named_progressions.idiom]]
 name = "カノン進行"
 alias = "Canon progression"
-degrees = [0, 7, 9, 4, 5, 0, 5, 7]
-qclasses = [["maj"], ["maj", "dom"], ["min"], ["min"], ["maj"], ["maj"], ["maj"], ["maj", "dom"]]
+degrees = [0, 7, 9, 4, 5, [0, 4], [5, 2], 7]
+qclasses = [["maj"], ["maj", "dom"], ["min"], ["min"], ["maj"], ["maj", "min"], ["maj", "min"], ["maj", "dom", "sus"]]
+min_length = 5
 use_key_prior = false
-note = "I–V–vi–iii–IV–I–IV–V (Pachelbel)."
+note = """I–V–vi–iii–IV–I–IV–V (Pachelbel). I–V–vi–iii–IV is the distinctive core; common J-pop second
+halves (IV–iii–ii–V, IV–I/3–ii–V) are accepted. I–V–vi–IV (axis progression) is NOT canon."""
+
+[[named_progressions.idiom]]
+name = "カノン進行"
+alias = "Canon progression (descending bass)"
+# The Pachelbel bass line 1–7–6–5–4: I – V/7 – vi – (I/5 | iii/5 | V) – (IV | II/♯4 | ♯ivø7).
+# Roots are loose because J-pop reharmonises the line; the stepwise bass is the evidence.
+# Full line 1–7–6–5–4–3–(2|4)–5: … – IV – (I/3 | iii) – (ii | IV) – V; first 5 = core.
+degrees = [0, 7, 9, [0, 4, 7], [5, 2, 6], [0, 4], [2, 5], 7]
+qclasses = "any"
+bass = [0, 11, 9, 7, [5, 6], 4, -1, -1]
+min_length = 5
+use_key_prior = false
+note = "[UNCERTAIN] whether the chromatic ♯4 bass (II/♯4, ♯ivø7) still counts as カノン進行 or a derivative."
 
 [deceptive_cadence]
 enabled = true

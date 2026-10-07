@@ -58,5 +58,30 @@ class TestFewerFalseAppliedChords(unittest.TestCase):
         self.assertEqual([e.label for e in events(run("A D7 G A", key="A"), "secondary_dominant")], ["V7/♭VII"])
 
 
+class TestCanonFamily(unittest.TestCase):
+    """カノン進行 was never found in real songs: the strict 8-chord form is rare in J-pop."""
+
+    def names(self, text):
+        return [(p.name, p.alias, p.numerals) for p in run(text).progressions]
+
+    def test_pachelbel_core_and_jpop_second_halves(self):
+        for text, nums in [("C G Am Em F C F G C", ["I", "V", "vi", "iii", "IV", "I", "IV", "V"]),
+                           ("C G Am Em F Em Dm G C", ["I", "V", "vi", "iii", "IV", "iii", "ii", "V"]),
+                           ("C G Am Em F G C", ["I", "V", "vi", "iii", "IV"])]:
+            with self.subTest(text=text):
+                self.assertEqual(self.names(text), [("カノン進行", "Canon progression", nums)])
+
+    def test_descending_bass_form(self):
+        self.assertEqual(self.names("C G/B Am C/G F C/E Dm G C"),
+                         [("カノン進行", "Canon progression (descending bass)",
+                           ["I", "V/7", "vi", "I/5", "IV", "I/3", "ii", "V"])])
+        self.assertEqual(self.names("C G/B Am C/G D/F# F G C")[0][2][:5], ["I", "V/7", "vi", "I/5", "II/♯4"])
+
+    def test_axis_progression_is_not_canon(self):
+        # I–V–vi–IV: no iii, and the bass 1–5–6–4 is not the stepwise canon line
+        self.assertEqual([p.name for p in run("C G Am F C G Am F C").progressions], [])
+        self.assertEqual([p.name for p in run("C G/B Am F C G/B Am F C").progressions], [])
+
+
 if __name__ == "__main__":
     unittest.main()
