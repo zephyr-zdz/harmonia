@@ -110,3 +110,13 @@ Ways forward: (a) the user's Linux / RTX 6000 machine (SongFormer's native platf
 song); (b) close memory-heavy apps here and retry (≈ 1.5–3 min per song); (c) run in ≤ 120 s
 chunks — fits easily but departs from the model's 420 s context (quality unknown, would need
 checking against full-context output from (a) or (b)).
+
+## C — GPU run (user decision 2026-10-07: run on the RTX 6000 host)
+
+`tools/songformer_gpu/` (README there): `make_bundle.sh` (Mac: scripts + list + audio links,
+m4a decoded) → `setup_env.sh` (host: torch 2.7.1 + cu128 for Blackwell, rest as upstream) →
+`submit.sh` (Slurm / PBS / LSF / direct) or the host's Claude `gsched` skill with `run_job.sh`
+→ results back to `outputs/songformer/runs/gpu_v1/` → `tools/compare_structure.py` (A vs C:
+boundary F@3s, pairwise F, label agreement — agreement, not accuracy).
+Note: torch 2.7.1 on GPU vs 2.4.0 in the CPU trial; outputs of the 60 s clip can be compared
+to `kaeri_60s` from the CPU run as a cross-check.

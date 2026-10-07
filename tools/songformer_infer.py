@@ -27,8 +27,15 @@ def main() -> int:
     ap.add_argument("--low-mem", action="store_true", help="load weights without an extra full copy")
     ap.add_argument("--bf16", action="store_true", help="CPU bfloat16 autocast (halves activation memory; "
                                                         "check sections against fp32 before trusting it)")
-    ap.add_argument("audio", nargs="+")
+    ap.add_argument("--list", help="text file with one audio path per line (in addition to positional paths)")
+    ap.add_argument("--force", action="store_true", help="recompute songs whose JSON already exists")
+    ap.add_argument("audio", nargs="*")
     args = ap.parse_args()
+    if args.list:
+        args.audio += [l.strip() for l in Path(args.list).read_text(encoding="utf-8").splitlines()
+                       if l.strip() and not l.startswith("#")]
+    if not args.audio:
+        ap.error("no audio given")
 
     model_dir = str(Path(args.model).resolve())
     sys.path.insert(0, model_dir)
@@ -74,9 +81,15 @@ def main() -> int:
             m.dropout_p = 0.0
     model.to(args.device)
     model.eval()
+    print(f"model ready on {args.device} (torch {torch.__version__}"
+          + (f", {torch.cuda.get_device_name(0)}" if args.device.startswith("cuda") else "") + ")", flush=True)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     for a in args.audio:
+        dst = out / f"{Path(a).stem}.songformer.json"
+        if dst.is_file() and not args.force:
+            print(f"{Path(a).name}: exists, skipped", flush=True)
+            continue
         t0 = time.time()
         amp = torch.autocast("cpu", dtype=torch.bfloat16) if args.bf16 else contextlib.nullcontext()
         with torch.no_grad(), amp:
@@ -85,8 +98,7 @@ def main() -> int:
         rec = {"audio": str(Path(a).resolve()), "device": args.device, "bf16": args.bf16, "seconds": round(dt, 1),
                "sections": [{"start": float(s["start"]), "end": float(s["end"]), "label": s["label"]}
                             for s in sections]}
-        (out / f"{Path(a).stem}.songformer.json").write_text(json.dumps(rec, ensure_ascii=False, indent=1),
-                                                             encoding="utf-8")
+        dst.write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"{Path(a).name}: {len(sections)} sections in {dt:.1f} s", flush=True)
     return 0
 

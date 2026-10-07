@@ -25,6 +25,8 @@ uv sync --extra eval                                 # .venv with mir_eval (Phas
 .venv/bin/python -m harmonia eval --split dev --estimates outputs/<run>   # real system output
 .venv/bin/python -m harmonia.eval.idolsongsjp                          # (re)build data/eval from IdolSongsJp
 .venv/bin/python -m harmonia.frontend.calibrate --out outputs/calibration/<name>   # decoder grid on dev
+bash tools/songformer_gpu/make_bundle.sh                                     # SongFormer bundle for the GPU host
+.venv/bin/python tools/compare_structure.py outputs/songformer/runs/gpu_v1     # structure A vs SongFormer
 .venv/bin/python -m harmonia eval --split dev --simulate --seed 0         # simulated recogniser
 .venv/bin/python -m harmonia eval --split dev --sweep                     # robustness curve
 uv sync --extra eval --extra audio                                       # + torch, lv-chordia, beat-this, demucs
