@@ -59,3 +59,34 @@ writes v–I–IV where we write ii–V–I/IV). Not rule problems; no further r
 User recordings (outputs/runs/user_music_v1, no references → counts only, not accuracy):
 deceptive cadences 44 → 38, of which 36 now low-confidence; secondary dominants 57 → 50
 (21 low-confidence); unresolved ii–V 11 → 6.
+
+## 2026-10-07 — first real-audio evaluation: IdolSongsJp (15 J-pop idol songs)
+
+Data: IdolSongsJp (Suda et al., ISMIR 2025; HF `imprt/idol-songs-jp`, gated, evaluation only —
+training prohibited by its license). Plain mixes `master_48k32b_-9LUFS`, expert chord + time-varying
+key annotations. Imported by `python -m harmonia.eval.idolsongsjp`; split by `choco.split_of`:
+dev = f04 f05 f06 f07 m02 m03 m04 m07, test = f01 f02 f03 f08 m01 m05 m06.
+System: front end option A (Beat This! + lv-chordia + our decoder, config as committed in
+4d92908, **nothing tuned on this corpus**), recognitions in `outputs/runs/idolsongsjp_v1`.
+Command: `harmonia eval --split <dev|test> --estimates outputs/runs/idolsongsjp_v1`.
+Oracle = analysis layer on the reference chords (no recognition errors).
+
+| split | root | majmin | sevenths | CER majmin | numeral agree strict / degree | global key = oracle | local key weighted / exact: oracle | system |
+|---|---|---|---|---|---|---|---|---|
+| dev (8) | 0.807 | 0.812 | 0.623 | 0.299 | 0.540 / 0.794 | 8/8 | 0.950 / 0.932 | 0.932 / 0.915 |
+| test (7, looked at once) | 0.788 | 0.771 | 0.594 | 0.336 | 0.446 / 0.632 | 6/7 | 0.678 / 0.553 | 0.697 / 0.568 |
+
+Events system vs oracle (dev): P 0.66 / R 0.48 / F1 0.56 — modulation 0.88, aeolian 0.86,
+secondary dominant 0.61, ii–V–I 0.61, borrowed 0.52 (recall 0.37), deceptive 0.33, tritone 0.
+No gold events yet (IdolSongsJp has none), so these measure recognition-induced change only.
+
+Findings:
+* Strict vs degree numeral agreement: the recogniser mostly drops 7ths / 9ths (maj7(9) → maj);
+  degree agreement ≈ root accuracy, i.e. numerals track recognition, not analysis.
+* Dev: the key model is excellent on real J-pop (local 0.95 with reference chords; modulations
+  up a semitone in f04 / m07 and the 5-key m04 found). One system error: m07's D♭ section
+  read as F♯ (= G♭, a 4th up — the known subdominant confusion).
+* Test: 3/7 songs are **relative major / minor confusions** (m01 C major → A minor; m05 A minor →
+  oracle C major, system correct; m06 B major → G♯ minor). Dev had none. This is the
+  relative-key ambiguity of decision Q2 (mild major prior). Not tuned on test — needs a
+  theory-level answer from the user / more dev material.

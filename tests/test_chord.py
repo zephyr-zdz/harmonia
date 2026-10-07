@@ -25,6 +25,8 @@ class TestChordParsing(unittest.TestCase):
         # Harte
         "C:maj/3": "C:maj/3", "A:min7": "A:min7", "B:hdim7": "B:hdim7", "C:sus4(b7)": "C:sus4(b7)",
         "C:(1,b3,5)": "C:min", "C:7(b9)": "C:7(b9)", "C:9": "C:7(9)", "G:maj(*3)": "G:5",
+        # Harte-style extensions used by IdolSongsJp; redundant chord tones are tolerated
+        "Db:7sus4": "Db:sus4(b7)", "Eb:aug7": "Eb:aug(b7)", "Bb:maj9(7)/2": "Bb:maj7(9)/2",
         # no-chord
         "N": "N", "N.C.": "N", "X": "X",
     }

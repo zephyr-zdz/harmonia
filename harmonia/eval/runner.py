@@ -5,7 +5,8 @@ For every song the analysis layer runs twice with the SAME config:
     system = analyze(recognised chords)     -> end-to-end
 Reported per song and aggregated:
   * chord metrics (mir_eval, or chart symbol-error rates + approximate aligned scores)
-  * key: global key of oracle / system (and mir_eval key score if meta.toml gives a key)
+  * key: global key of oracle / system (and mir_eval key score if meta.toml gives a key);
+    local keys vs keys.lab (duration-weighted mir_eval score, exact, tonic) if present
   * roman-numeral agreement system vs oracle (time-weighted)
   * events: P/R/F1 of oracle and system against gold events (if events.json exists),
     error attribution, and system-vs-oracle agreement (always available)
@@ -54,7 +55,14 @@ def _spans(res: AnalysisResult, seg_time: list[tuple[float, float]] | None = Non
     return out
 
 
-def _numeral_agreement(oracle: AnalysisResult, system: AnalysisResult, emap: list[int | None] | None) -> float | None:
+def _numeral_agreement(oracle: AnalysisResult, system: AnalysisResult, emap: list[int | None] | None,
+                       degree_only: bool = False) -> float | None:
+    """Time-weighted agreement of system vs oracle numerals. Strict: the full display string
+    (quality, 7th, inversion). ``degree_only``: just the root's scale degree in the local key
+    (separates key / root errors from dropped 7ths)."""
+    def same(a, b) -> bool:
+        return a.degree == b.degree if degree_only else a.display == b.display
+
     """Time-weighted fraction of the system timeline whose roman numeral equals the oracle's."""
     num = den = 0.0
     if emap is not None:
@@ -65,7 +73,7 @@ def _numeral_agreement(oracle: AnalysisResult, system: AnalysisResult, emap: lis
             w = s.end - s.start
             den += w
             o = oracle.segments[i]
-            num += w * (o.roman is not None and o.roman.display == s.roman.display)
+            num += w * (o.roman is not None and same(o.roman, s.roman))
         return num / den if den else None
     # lab: sweep over both segmentations
     oi = 0
@@ -80,9 +88,28 @@ def _numeral_agreement(oracle: AnalysisResult, system: AnalysisResult, emap: lis
             w = min(o.end, s.end) - max(o.start, s.start)
             if w > 0 and o.roman is not None:
                 den += w
-                num += w * (o.roman.display == s.roman.display)
+                num += w * same(o.roman, s.roman)
             k += 1
     return num / den if den else None
+
+
+def local_key_scores(res: AnalysisResult, spans: list[tuple[float, float, str]]) -> dict[str, float] | None:
+    """Per-segment local key vs time-varying reference keys, weighted by overlap duration.
+    Segments without a chord (N / X) are skipped (no key claim there)."""
+    dur = w_score = exact = tonic = 0.0
+    for rs, re_, ref in spans:
+        rt = ref.split()[0]
+        for s in res.segments:
+            w = min(s.end, re_) - max(s.start, rs)
+            if w <= 0 or s.key is None or s.chord_harte in ("N", "X"):
+                continue
+            dur += w
+            w_score += w * mir_eval.key.weighted_score(ref, s.key.label)
+            exact += w * (mir_eval.key.weighted_score(ref, s.key.label) == 1.0)
+            tonic += w * (mir_eval.key.split_key_string(ref)[0] == mir_eval.key.split_key_string(s.key.label)[0])
+    if not dur:
+        return None
+    return {"weighted": w_score / dur, "exact": exact / dur, "tonic": tonic / dur, "duration": dur}
 
 
 def evaluate_song(ref: Reference, est: RecognitionResult, cfg: dict) -> dict[str, Any]:
@@ -117,7 +144,11 @@ def evaluate_song(ref: Reference, est: RecognitionResult, cfg: dict) -> dict[str
         "system_score": mir_eval.key.weighted_score(gk, system.global_key.key.label) if gk else None,
         "system_matches_oracle": oracle.global_key.key.label == system.global_key.key.label,
     }
+    if ref.key_spans:
+        out["key"]["local_oracle"] = local_key_scores(oracle, ref.key_spans)
+        out["key"]["local_system"] = local_key_scores(system, ref.key_spans)
     out["numeral_agreement"] = _numeral_agreement(oracle, system, emap)
+    out["numeral_degree_agreement"] = _numeral_agreement(oracle, system, emap, degree_only=True)
 
     oracle_spans = _spans(oracle)
     out["events_agreement"] = prf(oracle_spans, sys_spans)
@@ -165,7 +196,17 @@ def aggregate(songs: list[dict]) -> dict[str, Any]:
                                      for k in ("cer_root", "cer_majmin", "cer_sevenths")}
     nums = [s["numeral_agreement"] for s in songs if s["numeral_agreement"] is not None]
     out["numeral_agreement_mean"] = sum(nums) / len(nums) if nums else None
+    degs = [s["numeral_degree_agreement"] for s in songs if s.get("numeral_degree_agreement") is not None]
+    out["numeral_degree_agreement_mean"] = sum(degs) / len(degs) if degs else None
     out["global_key_matches_oracle"] = sum(s["key"]["system_matches_oracle"] for s in songs)
+    for who in ("oracle", "system"):
+        g = [s["key"][f"{who}_score"] for s in songs if s["key"].get(f"{who}_score") is not None]
+        out[f"global_key_score_{who}"] = sum(g) / len(g) if g else None
+        loc = [s["key"][f"local_{who}"] for s in songs if s["key"].get(f"local_{who}")]
+        if loc:
+            d = sum(x["duration"] for x in loc)
+            out[f"local_key_{who}"] = {k: sum(x[k] * x["duration"] for x in loc) / d
+                                       for k in ("weighted", "exact", "tonic")}
     for k in ("events_agreement", "events_oracle", "events_system"):
         out[k] = _sum_counts(songs, k)
     attr: dict[str, int] = {}
@@ -213,7 +254,7 @@ def run(data_root: Path, split: str, *, estimates_dir: Path | None = None, sim: 
             est = simulate(iv, labels, SimConfig(**{**asdict(sim), "seed": sim.seed + _stable_hash(ref.song_id)}),
                            time_unit=ref.time_unit)
         else:
-            cand = [estimates_dir / f"{ref.song_id}{ext}" for ext in (".json", ".lab")]
+            cand = [estimates_dir / f"{ref.song_id}{ext}" for ext in (".json", ".recognition.json", ".lab")]
             path = next((p for p in cand if p.is_file()), None)
             if path is None:
                 skipped.append({"song_id": ref.song_id, "reason": "no estimate file"})
@@ -277,8 +318,19 @@ def to_markdown(rep: dict[str, Any]) -> str:
         L += ["Chord-symbol error rate (edit distance / #ref chords; lower is better):", "",
               "| root | majmin | sevenths |", "|---|---|---|",
               "| " + " | ".join(_f(v) for v in a["chord_symbol_error"].values()) + " |", ""]
-    L += [f"Roman-numeral agreement system vs oracle: {_f(a['numeral_agreement_mean'])}; "
+    L += [f"Roman-numeral agreement system vs oracle: {_f(a['numeral_agreement_mean'])} strict, "
+          f"{_f(a.get('numeral_degree_agreement_mean'))} root degree only; "
           f"global key equals oracle in {a['global_key_matches_oracle']}/{a['n_songs']} songs.", ""]
+    if a.get("global_key_score_oracle") is not None:
+        L += [f"Global key vs meta.toml (mean mir_eval weighted score): oracle {_f(a['global_key_score_oracle'])}, "
+              f"system {_f(a['global_key_score_system'])}.", ""]
+    if a.get("local_key_oracle"):
+        L += ["Local key vs keys.lab (duration-weighted):", "", "| input | mir_eval weighted | exact | tonic |",
+              "|---|---|---|---|"]
+        for who in ("oracle", "system"):
+            k = a[f"local_key_{who}"]
+            L.append(f"| {who} | {_f(k['weighted'])} | {_f(k['exact'])} | {_f(k['tonic'])} |")
+        L.append("")
     for key, title in (("events_oracle", "Events — ORACLE (reference chords) vs gold → analysis layer alone"),
                        ("events_system", "Events — SYSTEM vs gold → end to end"),
                        ("events_agreement", "Events — SYSTEM vs ORACLE → impact of recognition errors")):
@@ -298,16 +350,18 @@ def to_markdown(rep: dict[str, Any]) -> str:
         L += [f"| {k} | {v} |" for k, v in sorted(a["attribution"].items())]
         L += ["", "analysis_* = error already present with reference chords (fix rules / key model); "
                   "recognition_* = error caused by recognised chords (fix front end).", ""]
-    L += ["## Per song", "", "| song | kind | majmin / CER-majmin | key oracle → system | numeral agree | "
-          "events F1 sys vs gold | vs oracle |", "|---|---|---|---|---|---|---|"]
+    L += ["## Per song", "", "| song | kind | majmin / CER-majmin | key ref: oracle → system | local key o / s | "
+          "numeral agree | events F1 sys vs gold | vs oracle |", "|---|---|---|---|---|---|---|---|"]
     for s in rep["songs"]:
         c = s["chord"]
         chord = f"{_f(c.get('majmin', c.get('aligned_majmin')))} / {_f(c['cer_majmin'])}"
-        L.append(f"| {s['song_id']} | {s['kind']} | {chord} | {s['key']['oracle']} → {s['key']['system']} | "
-                 f"{_f(s['numeral_agreement'])} | {_f(s.get('events_system', {}).get('overall', {}).get('f1'))} | "
+        lo, ls = s["key"].get("local_oracle"), s["key"].get("local_system")
+        loc = f"{_f(lo['weighted'])} / {_f(ls['weighted'])}" if lo and ls else "—"
+        L.append(f"| {s['song_id']} | {s['kind']} | {chord} | {s['key']['reference'] or '—'}: {s['key']['oracle']} → "
+                 f"{s['key']['system']} | {loc} | {_f(s['numeral_agreement'])} | {_f(s.get('events_system', {}).get('overall', {}).get('f1'))} | "
                  f"{_f(s['events_agreement']['overall']['f1'])} |")
     for sk in rep.get("skipped", []):
-        L.append(f"| {sk['song_id']} | skipped: {sk['reason']} | | | | | |")
+        L.append(f"| {sk['song_id']} | skipped: {sk['reason']} | | | | | | |")
     return "\n".join(L) + "\n"
 
 

@@ -75,6 +75,24 @@ class TestRunner(unittest.TestCase):
                 self.assertEqual(r["events_oracle"]["overall"]["recall"], 1.0)
                 self.assertEqual(r["attribution"]["counts"], {"ok": len(ref.events)})
                 self.assertEqual(r["numeral_agreement"], 1.0)
+                self.assertEqual(r["numeral_degree_agreement"], 1.0)
+                if ref.key_spans:
+                    self.assertEqual(r["key"]["local_oracle"]["weighted"], 1.0)
+                    self.assertEqual(r["key"]["local_system"]["exact"], 1.0)
+
+    def test_local_key_scores(self):
+        # keys.lab (Harte-style "C:maj") is read; scores are duration-weighted mir_eval key scores
+        from harmonia.analysis import analyze
+        from harmonia.eval.dataset import load_reference
+        from harmonia.eval.runner import local_key_scores
+        ref = load_reference(FIX / "dev" / "toy_lab", "dev")
+        self.assertEqual(ref.key_spans, [(0.0, 30.0, "C major")])
+        res = analyze(ref.recognition)
+        self.assertTrue(all(s.key.label == "C major" for s in res.segments))
+        k = local_key_scores(res, [(0.0, 15.0, "C major"), (15.0, 30.0, "A minor")])
+        self.assertAlmostEqual(k["exact"], 0.5)
+        self.assertAlmostEqual(k["tonic"], 0.5)
+        self.assertAlmostEqual(k["weighted"], 0.5 * 1.0 + 0.5 * 0.3)   # relative minor scores 0.3
 
     def test_chart_reference_vs_estimate_in_seconds(self):
         # The same chords performed at 120 BPM (seconds timeline) must align to the chart.

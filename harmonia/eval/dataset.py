@@ -6,6 +6,8 @@ Layout (see data/eval/README.md):
         chords.txt   bar-wise chord chart (harmonia.io.progression syntax)
         events.json  optional gold harmonic events
         meta.toml    optional: title, artist, key, audio, source, license, beats_per_bar
+        keys.lab     optional time-varying key reference (start end key), lab refs only;
+                     key as "D:maj" / "C#:min" (Harte-style) or "D major"
 
 Gold events (events.json, a list):
     {"type": "secondary_dominant", "start": 12.3, "end": 14.0, "label": "V7/vi"}   # lab refs
@@ -46,6 +48,7 @@ class Reference:
     events: list[GoldEvent] | None              # None = no gold events
     meta: dict[str, Any] = field(default_factory=dict)
     path: Path | None = None
+    key_spans: list[tuple[float, float, str]] | None = None   # from keys.lab, mir_eval key labels
 
     @property
     def time_unit(self) -> str:
@@ -93,7 +96,22 @@ def load_reference(song_dir: Path, split: str) -> Reference:
     events = None
     if (song_dir / "events.json").is_file():
         events = _load_events(song_dir / "events.json", kind, bpb)
-    return Reference(song_dir.name, split, kind, rec, events, meta, song_dir)
+    key_spans = None
+    if (song_dir / "keys.lab").is_file():
+        if kind != "lab":
+            raise ValueError(f"{song_dir}: keys.lab needs a time-aligned chords.lab")
+        key_spans = [(s, e, key_label_to_mir_eval(k)) for s, e, k in read_lab(song_dir / "keys.lab")]
+    return Reference(song_dir.name, split, kind, rec, events, meta, song_dir, key_spans)
+
+
+def key_label_to_mir_eval(label: str) -> str:
+    """'D:maj' -> 'D major', 'C#:min' -> 'C# minor'; 'D major' unchanged."""
+    if ":" not in label:
+        return label
+    tonic, mode = label.split(":", 1)
+    if mode not in ("maj", "min"):
+        raise ValueError(f"unsupported key label {label!r}")
+    return f"{tonic} {'major' if mode == 'maj' else 'minor'}"
 
 
 def discover(root: Path, split: str) -> list[Reference]:

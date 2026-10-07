@@ -10,7 +10,7 @@ Target styles: J-pop / City Pop / pop. Jazz reharmonisation accuracy is a non-go
 | Phase | Scope | State |
 |---|---|---|
 | 1 | Symbolic analysis layer (chord symbols → keys / numerals / events) | done (accepted 2026-10-06) |
-| 2 | Evaluation framework (mir_eval chord metrics, event P/R, error attribution) | framework done; real audio data pending (IdolSongsJp: HF access not yet granted; MyGO: user transcribing official scores) |
+| 2 | Evaluation framework (mir_eval chord metrics, event P/R, error attribution) | framework done; IdolSongsJp (15 songs, 8 dev / 7 test) evaluated; MyGO refs pending (user transcribing official scores) |
 | 3 | Audio front end | option A running end-to-end (docs/phase3_options.md); calibration pending dev data |
 | 4 | UI (timeline, playback, manual chord edits → re-analysis) | running (song library + switching); awaiting user feedback |
 | 5 | Optional LLM narration of events | not started |
@@ -23,6 +23,7 @@ Each phase ends with: run tests, report metrics, stop for user confirmation.
 uv sync --extra eval                                 # .venv with mir_eval (Phase 2)
 .venv/bin/python -m unittest discover -s tests -t .  # full suite (eval tests skip without mir_eval)
 .venv/bin/python -m harmonia eval --split dev --estimates outputs/<run>   # real system output
+.venv/bin/python -m harmonia.eval.idolsongsjp                          # (re)build data/eval from IdolSongsJp
 .venv/bin/python -m harmonia eval --split dev --simulate --seed 0         # simulated recogniser
 .venv/bin/python -m harmonia eval --split dev --sweep                     # robustness curve
 uv sync --extra eval --extra audio                                       # + torch, lv-chordia, beat-this, demucs
@@ -165,11 +166,16 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
   progression exempt, so 丸サ / 王道 decisions still hold); (2) too many deceptive cadences →
   graded preparation (IV–V–vi triads 0.5, mostly low-confidence now); (3) too many secondary
   dominants → unresolved ii–V of a non-tonic target needs chromatic V + minor ii, unresolved V/x
-  of a non-diatonic target dropped. Scores in docs/results.md. Postponed: 春日影 B major vs
-  B Mixolydian, 影色舞 modulation. MyGO references: user will transcribe official printed scores.
-- IdolSongsJp download (2026-10-07): user logged in to HF, but the gate still returns 403
-  ("not in the authorized list") — the access form on the dataset page must be submitted /
-  approved. Only README / LICENSE fetched so far (data/external/idolsongsjp, gitignored).
+  of a non-diatonic target dropped. Scores in docs/results.md. Postponed: 影色舞 modulation.
+  MyGO references: user will transcribe official printed scores.
+- **2026-10-07 (user)**: 春日影 (MyGO ver.) is in **B major** (the system's reading), not B
+  Mixolydian / E major despite the tab's key signature.
+- IdolSongsJp (2026-10-07): access granted; data/external/idolsongsjp (gitignored) holds only the
+  15 plain mixes (master_48k32b_-9LUFS, 1.4 GB) + chords/ + keys/. Imported with
+  `python -m harmonia.eval.idolsongsjp` → data/eval/{dev,test}/<id>/ (chords.lab, keys.lab =
+  time-varying keys, meta.toml with provenance + license). Split by choco.split_of: 8 dev / 7 test.
+  NOTE: `hf download --include a b c --exclude …` ignored --exclude and fetched every variant
+  (7 GB); use hf_hub_download per file.
 - ChoCo v1.0.0 (Zenodo 7706751, md5 c26f2380…): annotations only; used for symbolic
   validation of the key model and for transition-prior statistics.
 

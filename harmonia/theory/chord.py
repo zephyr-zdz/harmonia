@@ -221,6 +221,8 @@ _HARTE_SHORT: dict[str, tuple[str, tuple[str, ...]]] = {
     "11": ("7", ("9", "11")), "min11": ("min7", ("9", "11")),
     "13": ("7", ("9", "13")), "maj13": ("maj7", ("9", "13")), "min13": ("min7", ("9", "13")),
     "sus2": ("sus2", ()), "sus4": ("sus4", ()), "5": ("5", ()), "1": ("5", ()),
+    # not in Harte (2005) but used by Harte-style corpora (e.g. IdolSongsJp)
+    "7sus4": ("7sus4", ()), "aug7": ("aug7", ()),
 }
 
 
@@ -276,10 +278,9 @@ def _apply_token(quality: str, ext: list[str], tok: str, label: str) -> str:
     elif tok == "bb7":
         if quality == "dim":
             return "dim7"
-    elif tok in ("1", "3", "5", "b3"):
-        semis = {"1": 0, "3": 4, "5": 7, "b3": 3}[tok]
-        if semis in QUALITY_INTERVALS[quality]:
-            return quality  # redundant restatement of a chord tone
+    if re.fullmatch(r"[#b]*\d+", tok) and int(tok.lstrip("#b")) in _DEGREE_BASE:
+        if _degree_to_semitones(tok, label) in QUALITY_INTERVALS[quality]:
+            return quality  # redundant restatement of a chord tone, e.g. C:maj9(7)
     raise ChordParseError(f"cannot apply {tok!r} to quality {quality!r} in {label!r}")
 
 
