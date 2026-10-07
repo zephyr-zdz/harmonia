@@ -171,3 +171,21 @@ first, wrong structure w = 0.5 lost 0.024). Repeats do not give independent seco
 the recogniser repeats its mistakes when the arrangement repeats — so pooling stays OFF.
 Structure is kept for analysis (sections, last-chorus modulation: 帰り道 final chorus found
 +3 semitones, matching the key annotation G♭ → A at 280 s) and the UI.
+
+## 2026-10-07 — SongFormer (structure option C) on the RTX 6000 host vs option A
+
+Run: gsched job 1 on bw2-01 GPU 0 (RTX PRO 6000 Blackwell), torch 2.7.1+cu128, transformers
+4.51.1, SongFormer @ a75880ed with the verified CPU-trial adaptations (tools/songformer_gpu).
+29 songs (15 IdolSongsJp + 14 MyGO) in 2 min wall time, ~2 s per song; results in
+`outputs/songformer/runs/gpu_v1/` (gitignored). Comparison: `tools/compare_structure.py`
+(SongFormer as reference; agreement, NOT accuracy — no structure ground truth exists yet).
+
+| | boundary F@3s | pairwise F | label agreement |
+|---|---|---|---|
+| mean over 29 songs | 0.613 | 0.482 | 0.252 |
+
+Option A produces about twice as many sections (median 22 vs 13). Side-by-side reading:
+SongFormer's labels follow the expected J-pop form (e.g. 春日影 MyGO ver.: intro → verse ×2 →
+pre-chorus → chorus ×2 → verse → chorus → inst → bridge → inst → chorus ×3), while A leaves many
+stretches as inst / other and mislabels some (春日影: a "chorus" at 23 s). A's boundaries and
+repetition groups (incl. modulation shift) agree reasonably; its LABEL rules are the weak part.
