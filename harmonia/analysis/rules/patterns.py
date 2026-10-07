@@ -139,14 +139,20 @@ def detect_deceptive(ctx: AnalysisContext) -> list[Event]:
                      quality_factor(ctx, ctx.cond(res_seg, root, tq),
                                     ctx.cond(res_seg, root, is_class("dim", "hdim"))))
             prev = ctx.prev_run(j)
-            predominant = 0.0
+            pre_ii = pre_iv = 0.0
             if prev is not None:
                 pr = ctx.runs[prev]
-                predominant = max(ctx.best_mass(pr, t + 2, is_class("min", "hdim", "dim"))[0],
-                                  ctx.best_mass(pr, t + 5, is_class("maj", "min"))[0])
+                pre_ii = ctx.best_mass(pr, t + 2, is_class("min", "hdim", "dim"))[0]
+                pre_iv = ctx.best_mass(pr, t + 5, is_class("maj", "min"))[0]
             seventh = ctx.cond(v_seg, t + 7, lambda ch: 1.0 if ch.has_seventh else 0.0)
-            if predominant >= 0.5:
-                sc.apply("preparation", "V is prepared by a predominant (ii / IV)", cfg["prepared"])
+            if pre_ii >= 0.5:
+                sc.apply("preparation", "V is prepared by ii (cadential ii–V)", cfg["prepared"])
+            elif pre_iv >= 0.5 and seventh >= 0.5:
+                sc.apply("preparation", "IV → V7: prepared, V carries its 7th", cfg["prepared_iv_seventh"])
+            elif pre_iv >= 0.5:
+                # IV–V–vi is stock J-pop phrase motion (王道 family), rarely a felt "interruption"
+                sc.apply("preparation", "IV → V triad → vi: common loop motion, weak cadence",
+                         cfg["prepared_iv_triad"])
             elif seventh >= 0.5:
                 sc.apply("preparation", "unprepared, but V carries its 7th", cfg["seventh_only"])
             else:

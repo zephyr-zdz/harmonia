@@ -27,6 +27,7 @@ from ...theory.key import Key
 from ...theory.roman import applied_label, diatonic_triad_class, target_numeral
 from ..context import AnalysisContext, Run
 from .base import Score, is_class, make_event, quality_factor
+from .secondary import dominant_weight
 
 RULE = "ii_V_I"
 
@@ -143,6 +144,18 @@ def _unresolved(ctx: AnalysisContext, iirun: Run, vrun: Run, irun: Run | None) -
         tonic = t == key.tonic
         if tonic and status == "deceptive":
             continue  # reported by the deceptive_cadence rule
+        if not tonic:
+            # Without the resolution, root motion alone is weak: every diatonic 5th pair
+            # (iii–vi, vi–ii, v–I, IV–♭VII) would be a "ii–V of something". So, as for
+            # secondary dominants (design decision 2), the V must carry a tone outside the key,
+            # and the ii must actually be minor-family (quality is the evidence here, cf.
+            # design decision 3). Thresholds in [ii_V_I].
+            sec = ctx.cfg["secondary_dominant"]
+            chrom = ctx.cond(v_seg, t + 7, lambda ch, key=key: 1.0 if dominant_weight(ch, key, sec) > 0 else 0.0)
+            ii_q = ctx.cond(ii_seg, t + 2, II_MATCH)
+            if chrom < cfg["unresolved_min_chromatic"] or ii_q < cfg["unresolved_min_ii_quality"]:
+                continue
+            sc.apply("chromatic_V", f"{ctx.chord_label(v_seg)} has a tone outside {key.label} (P={chrom:.2f})", chrom)
         sc.apply("resolution", {"deceptive": "deceptive: lands a step above the expected I",
                                 "unresolved": "the expected I does not follow",
                                 "end": "input ends after V"}[status], factor)

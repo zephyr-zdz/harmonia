@@ -84,6 +84,11 @@ def detect_dominants(ctx: AnalysisContext) -> list[Event]:
                 options.append(("resolved", cfg["resolved"] * ctx.root_prob(nxt, target), nxt.segs[0]))
                 options.append(("deceptive", cfg["deceptive"] * ctx.root_prob(nxt, dec_root), nxt.segs[0]))
             status, factor, res_seg = max(options, key=lambda o: o[1])
+            if status == "unresolved" and target not in key.diatonic_pcs and not cfg["unresolved_nondiatonic"]:
+                # V/♭VII, V/♭III ... that never reach their target: the implied chord is itself
+                # chromatic and absent, so the reading is speculative (e.g. blues IV7 in rock
+                # is not "V7/♭VII"). Left to plain numerals / the borrowed-chord rule.
+                continue
             detail = {"resolved": f"resolves down a 5th to {key.spell(target)}",
                       "deceptive": "deceptive resolution (a step above the expected target)",
                       "unresolved": "does not resolve to its target"}[status]

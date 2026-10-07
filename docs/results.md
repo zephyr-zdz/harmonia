@@ -23,8 +23,39 @@ and ♭VII-heavy (Mixolydian) rock is diatonic in that subdominant key.
 
 Tried on dev and NOT adopted (conflict with J-pop decisions encoded in unit tests):
 * boundary tonic bonus (first/last chord): dev rock tonic up to 0.82, but 丸サ / 王道 loops
-  open on IV and the bonus moves them to the IV key → breaks decisions Q1/Q2. Kept, default off. [ASK]
+  open on IV and the bonus moves them to the IV key → breaks decisions Q1/Q2. (Switched on 2026-10-07 with idiom exemption, below.)
 * ♭VII penalty −1.2 → −0.6: small dev gain; makes F–G–Em–Am read as G Mixolydian (breaks Q2).
 
-Open issue: applied-dominant precision ≈ 0.2 — many predicted V/x where experts write a plain
+Open issue (addressed 2026-10-07, below): applied-dominant precision ≈ 0.2 — many predicted V/x where experts write a plain
 numeral (e.g. rock "II", unresolved). To investigate on dev.
+
+## 2026-10-07 — boundary tonic bonus ON, graded deceptive cadence, stricter applied chords
+
+Same data / split / metrics as above. Changes (user decisions 2026-10-07, see CLAUDE.md):
+1. `key.boundary_tonic_bonus` 0 → 3.0, with chords inside or restarting a named progression
+   exempt (`idioms.loop_segments`) — this resolves the earlier conflict with 丸サ / 王道.
+2. Unresolved `ii_V` of a non-tonic target needs a chromatic V (P ≥ 0.5) and a minor-family ii
+   (P ≥ 0.5); unresolved secondary dominants of a non-diatonic target (V/♭VII …) are dropped.
+3. Deceptive cadence: IV → V (triad) → vi gets 0.5, IV → V7 → vi 0.8, ii → V → vi 1.0.
+
+Dev sweep of the bonus (rule changes 2–3 not yet applied; rock tonic / iso key / robbie key):
+0 → .684/.696/.829, 1 → .698/.712/.850, 2 → .714/.745/.850, **3 → .770/.758/.850**,
+4 → .770/.773/.850, 6 → .777/.786/.847, 10 → .779/.787/.848; "last chord only" 3 → .706/.718/.820.
+Chose 3.0: most of the gain, smallest value on the plateau (a larger bonus lets one chord
+override more of the song).
+
+| split | config | rock key | rock tonic | rock numeral deg. | applied R / P | iso key | robbie key |
+|---|---|---|---|---|---|---|---|
+| dev | previous (cadence_triad_factor 0.3) | 0.584 | 0.684 | 0.629 | 0.69 / 0.22 | 0.696 | 0.829 |
+| dev | + boundary bonus 3.0 | 0.638 | 0.770 | 0.689 | 0.69 / 0.23 | 0.758 | 0.850 |
+| dev | **+ applied-chord rules (2)** | 0.638 | 0.770 | 0.689 | 0.69 / 0.29 | 0.758 | 0.850 |
+| test | previous | 0.701 | 0.808 | 0.750 | 0.76 / 0.25 | 0.736 | 0.763 |
+| test | **all 2026-10-07 changes** | 0.716 | 0.829 | 0.780 | 0.76 / 0.28 | 0.767 | 0.815 |
+
+Remaining applied false positives on dev (rock): mostly key errors (one song read in D♭ instead
+of F contributes 70 spans; "V/V" where the key is a 5th low) and notation differences (rock
+writes v–I–IV where we write ii–V–I/IV). Not rule problems; no further rule changes.
+
+User recordings (outputs/runs/user_music_v1, no references → counts only, not accuracy):
+deceptive cadences 44 → 38, of which 36 now low-confidence; secondary dominants 57 → 50
+(21 low-confidence); unresolved ii–V 11 → 6.

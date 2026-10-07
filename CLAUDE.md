@@ -10,9 +10,9 @@ Target styles: J-pop / City Pop / pop. Jazz reharmonisation accuracy is a non-go
 | Phase | Scope | State |
 |---|---|---|
 | 1 | Symbolic analysis layer (chord symbols → keys / numerals / events) | done (accepted 2026-10-06) |
-| 2 | Evaluation framework (mir_eval chord metrics, event P/R, error attribution) | framework done; real data pending (IdolSongsJp gated, user annotations) |
+| 2 | Evaluation framework (mir_eval chord metrics, event P/R, error attribution) | framework done; real audio data pending (IdolSongsJp: HF access not yet granted; MyGO: user transcribing official scores) |
 | 3 | Audio front end | option A running end-to-end (docs/phase3_options.md); calibration pending dev data |
-| 4 | UI (timeline, playback, manual chord edits → re-analysis) | not started |
+| 4 | UI (timeline, playback, manual chord edits → re-analysis) | running (song library + switching); awaiting user feedback |
 | 5 | Optional LLM narration of events | not started |
 
 Each phase ends with: run tests, report metrics, stop for user confirmation.
@@ -28,6 +28,8 @@ uv sync --extra eval                                 # .venv with mir_eval (Phas
 uv sync --extra eval --extra audio                                       # + torch, lv-chordia, beat-this, demucs
 .venv/bin/python -m harmonia analyze song.flac --save-recognition rec.json   # audio end to end
 .venv/bin/python -m harmonia transcribe song.mp3 -o rec.json                 # recognition layer only
+.venv/bin/python -m harmonia batch data/external/user_music -o outputs/runs/<name>   # whole folder
+.venv/bin/python -m harmonia ui                                              # song library UI (127.0.0.1:8765)
 python3 -m harmonia analyze "| Fmaj7 | E7 | Am7 | Gm7 C7 |" --key "C major"
 python3 -m harmonia analyze song.lab --json -o out.json
 ```
@@ -75,7 +77,9 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
   irregular bars), `pipeline.py` (`transcribe()` → RecognitionResult; m4a etc. decoded once
   via ffmpeg into outputs/cache/decoded/).
 - `harmonia/batch.py` — `harmonia batch <dir> -o outputs/runs/<name>` (per-song JSON + summary.md).
-- `harmonia/ui/` — `harmonia ui <audio | progression | recognition.json>`: local timeline UI.
+- `harmonia/ui/` — `harmonia ui [dirs/files…]` (default `[ui].library`): local timeline UI with a song
+  library (select / ◀ ▶ / `[` `]`), background transcription of new audio, cached recognitions
+  from `outputs/runs/*`, per-song edits in localStorage, export to `outputs/annotations/`.
   Chord models get the FULL MIX (they were trained on mixes); separation is optional, bass only.
 - Model weights live in `models/` (gitignored): `models/beat_this/final0.ckpt` (81 MB, MIT,
   https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt, sha256 8c328b45…).
@@ -157,6 +161,15 @@ text / .lab ─▶ harmonia/io ────────────▶ Recogniti
 - **2026-10-06 (user)**: copy the provided music into the project and recognise all of it →
   `data/external/user_music/` (gitignored, PROVENANCE.md), results in `outputs/runs/user_music_v1/`.
   User's impression of accuracy: "还行" (decent). No reference annotations yet → no scores.
+- **2026-10-07 (user)**: (1) boundary tonic bonus ON (3.0; chords inside / restarting a named
+  progression exempt, so 丸サ / 王道 decisions still hold); (2) too many deceptive cadences →
+  graded preparation (IV–V–vi triads 0.5, mostly low-confidence now); (3) too many secondary
+  dominants → unresolved ii–V of a non-tonic target needs chromatic V + minor ii, unresolved V/x
+  of a non-diatonic target dropped. Scores in docs/results.md. Postponed: 春日影 B major vs
+  B Mixolydian, 影色舞 modulation. MyGO references: user will transcribe official printed scores.
+- IdolSongsJp download (2026-10-07): user logged in to HF, but the gate still returns 403
+  ("not in the authorized list") — the access form on the dataset page must be submitted /
+  approved. Only README / LICENSE fetched so far (data/external/idolsongsjp, gitignored).
 - ChoCo v1.0.0 (Zenodo 7706751, md5 c26f2380…): annotations only; used for symbolic
   validation of the key model and for transition-prior statistics.
 

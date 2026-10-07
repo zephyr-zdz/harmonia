@@ -30,6 +30,7 @@ class IdiomMatch:
     all_segs: list[int]      # every segment covered
     confidence: float
     use_key_prior: bool
+    degrees: tuple[int, ...] = ()   # idiom degrees relative to ref_key
 
 
 def match_idioms(ctx: AnalysisContext) -> list[IdiomMatch]:
@@ -68,8 +69,29 @@ def match_idioms(ctx: AnalysisContext) -> list[IdiomMatch]:
                 continue
             all_segs = [s for ri in runs for s in ctx.runs[ri].segs]
             out.append(IdiomMatch(idiom["name"], idiom.get("alias", ""), Key(tonic, "major"), reps,
-                                  all_segs, round(conf, 4), bool(idiom.get("use_key_prior", False))))
+                                  all_segs, round(conf, 4), bool(idiom.get("use_key_prior", False)),
+                                  tuple(degrees)))
     return out
+
+
+def loop_segments(ctx: AnalysisContext, matches: list[IdiomMatch], min_root_prob: float = 0.5) -> frozenset[int]:
+    """Segments that belong to a named progression, including a loop restart right after it
+    (its first chord again) or a pickup right before it (its last chord). Such chords are
+    defined by the idiom (王道 opens on IV, 丸サ loops back to IVmaj7), so the key model must not
+    read them as "the song starts / ends on its tonic"."""
+    run_of = {s: r.index for r in ctx.runs for s in r.segs}
+    out: set[int] = set()
+    for m in matches:
+        out.update(m.all_segs)
+        if not m.degrees:
+            continue
+        first_pc = (m.ref_key.tonic + m.degrees[0]) % 12
+        last_pc = (m.ref_key.tonic + m.degrees[-1]) % 12
+        for ri, pc in ((ctx.next_run(run_of[max(m.all_segs)]), first_pc),
+                       (ctx.prev_run(run_of[min(m.all_segs)]), last_pc)):
+            if ri is not None and ctx.root_prob(ctx.runs[ri], pc) >= min_root_prob:
+                out.update(ctx.runs[ri].segs)
+    return frozenset(out)
 
 
 def key_prior_bonus(matches: list[IdiomMatch], n_segs: int, cfg: dict) -> list[dict[Key, float]]:

@@ -15,7 +15,7 @@ from ..schema import (
 from ..theory.key import Key, parse_key
 from ..theory.roman import roman
 from .context import AnalysisContext
-from .idioms import key_prior_bonus, match_idioms
+from .idioms import key_prior_bonus, loop_segments, match_idioms
 from .key_model import estimate_keys
 from .resolve import resolve
 from .rules import RULES
@@ -39,7 +39,8 @@ def build_context(rec: RecognitionResult, cfg: dict[str, Any] | None = None,
     given = parse_key(key) if isinstance(key, str) else key
     ctx = AnalysisContext(segs, None, cfg)
     idioms = match_idioms(ctx) if cfg["named_progressions"]["enabled"] else []
-    ka = estimate_keys(segs, cfg, given, prior=key_prior_bonus(idioms, len(segs), cfg))
+    ka = estimate_keys(segs, cfg, given, prior=key_prior_bonus(idioms, len(segs), cfg),
+                       boundary_exempt=loop_segments(ctx, idioms))
     for s, k, p in zip(segs, ka.seg_keys, ka.seg_probs):
         s.key, s.key_prob = k, p
     ctx.keys = ka

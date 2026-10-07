@@ -23,8 +23,9 @@ minor_bias = -0.1                # per-weight-unit prior against minor (pop corp
 cadence_bonus = 1.0              # V7 -> I (or V7 -> i) supports that key
 cadence_triad_factor = 0.3       # plain V triad -> I gets this fraction (it is also I -> IV of the key a 5th
                                  # below). 1.0 -> 0.3 chosen on ChoCo dev 2026-10-06 (see CLAUDE.md)
-boundary_tonic_bonus = 0.0       # bonus for the tonic triad at boundary chord(s). OFF: helps Western rock
-                                 # (ChoCo dev) but breaks J-pop conventions (songs/loops opening on IV) [ASK]
+boundary_tonic_bonus = 3.0       # bonus for the tonic triad at the first / last chord. ON (user 2026-10-07).
+                                 # Chords inside / restarting a named progression are exempt (王道 opens on
+                                 # IV, 丸サ loops back to IVmaj7). 3.0 from ChoCo dev sweep 0–10 (docs/results.md)
 boundary_positions = "both"      # both | last | first
 seventh_off_scale_penalty = 0.6  # maj7 / m7 / 6 whose added tone is outside the key
 min_region_beats = 16            # key regions shorter than this are merged (tonicization, not modulation)
@@ -50,6 +51,10 @@ sus_v_match = 0.8                # V7sus4 counts as a partial quality match for 
 report_unresolved = true         # also report ii–V without its I (type "ii_V")
 unresolved_deceptive = 0.75      # ii–V → chord a step above the target (ii–V–vi)
 unresolved_other = 0.6           # ii–V → anything else, or end of input
+# Unresolved ii–V of a NON-tonic target (2026-10-07, user: too many false applied chords):
+# root motion without resolution is weak, so require chromatic V + minor-family ii.
+unresolved_min_chromatic = 0.5   # P(V chord has a tone outside the key | its root)
+unresolved_min_ii_quality = 0.5  # P(ii is m / ø / ° | its root)
 
 [secondary_dominant]
 enabled = true
@@ -63,6 +68,7 @@ weight_7sus4 = 0.6
 resolved = 1.0                   # next root a 5th below
 deceptive = 0.75                 # V/x -> chord a step above x's root (e.g. E7 -> F in C: III7 -> IV)
 unresolved = 0.5
+unresolved_nondiatonic = false   # report unresolved V/x whose target x is not diatonic (V/♭VII ...)
 
 [secondary_leading_tone]
 enabled = true
@@ -261,8 +267,11 @@ note = "I–V–vi–iii–IV–I–IV–V (Pachelbel)."
 
 [deceptive_cadence]
 enabled = true
-prepared = 1.0       # V preceded by ii / IV
-seventh_only = 0.8   # V7 without predominant preparation; bare unprepared V→vi is not reported
+# User 2026-10-07: too many reports on J-pop (nearly all were IV–V–vi) -> graded preparation.
+prepared = 1.0              # V (or V7) preceded by ii: cadential ii–V
+prepared_iv_seventh = 0.8   # IV → V7 → vi
+prepared_iv_triad = 0.5     # IV → V → vi: stock J-pop motion; usually dropped or flagged low-confidence
+seventh_only = 0.8          # V7 without predominant preparation; bare unprepared V→vi is not reported
 
 # =======================================================================================
 # Recognition layer (Phase 3, option A — see docs/phase3_options.md)

@@ -94,7 +94,10 @@ def _weight(seg: SegData, kc: dict) -> float:
     return min(max(w, kc["weight_min"]), kc["weight_max"])
 
 
-def emission_matrix(segs: list[SegData], cfg: dict) -> list[list[float]]:
+def emission_matrix(segs: list[SegData], cfg: dict,
+                    boundary_exempt: frozenset[int] = frozenset()) -> list[list[float]]:
+    """``boundary_exempt``: segment indices that never receive the boundary tonic bonus
+    (chords inside a matched named progression, see below)."""
     kc = cfg["key"]
     out: list[list[float]] = []
     prev: SegData | None = None
@@ -127,11 +130,14 @@ def emission_matrix(segs: list[SegData], cfg: dict) -> list[list[float]]:
         out.append(row)
     # Tonic salience at the boundaries: songs (and excerpts) overwhelmingly begin and end on
     # the tonic chord, which separates a key from its subdominant / Mixolydian neighbour.
+    # Exception: a boundary chord inside a named progression (王道 / 丸サ / ... loops open on
+    # IV or end on vi by definition). There the idiom, not "first chord = tonic", decides
+    # (user decisions Q1/Q2, 2026-10-06; bonus switched on 2026-10-07).
     b = kc["boundary_tonic_bonus"]
     rooted = [i for i, s in enumerate(segs) if any(c.chord.root is not None and c.prob > 0 for c in s.dist.cands)]
     if b and rooted:
         where = {"both": {rooted[0], rooted[-1]}, "last": {rooted[-1]}, "first": {rooted[0]}}[kc["boundary_positions"]]
-        for i in where:
+        for i in where - boundary_exempt:
             for ki, key in enumerate(ALL_KEYS):
                 tq = "maj" if key.is_major else "min"
                 out[i][ki] += b * segs[i].dist.mass(key.tonic, lambda ch, tq=tq: 1.0 if ch.qclass == tq else 0.0)
@@ -217,14 +223,16 @@ def _merge_short_regions(path: list[int], E: list[list[float]], segs: list[SegDa
 
 
 def estimate_keys(segs: list[SegData], cfg: dict, given: Key | None = None,
-                  prior: list[dict[Key, float]] | None = None) -> KeyAnalysis:
+                  prior: list[dict[Key, float]] | None = None,
+                  boundary_exempt: frozenset[int] = frozenset()) -> KeyAnalysis:
     """``prior``: optional per-segment additive emission bonus {key: log-bonus}
-    (from named progressions with use_key_prior, see idioms.py)."""
+    (from named progressions with use_key_prior, see idioms.py).
+    ``boundary_exempt``: segments excluded from the boundary tonic bonus."""
     kc = cfg["key"]
     n = len(segs)
     if n == 0:
         raise ValueError("cannot estimate key of an empty progression")
-    E = emission_matrix(segs, cfg)
+    E = emission_matrix(segs, cfg, boundary_exempt)
     if prior is not None:
         for t, bonus in enumerate(prior):
             for key, b in bonus.items():
